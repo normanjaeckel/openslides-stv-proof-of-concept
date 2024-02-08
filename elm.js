@@ -600,11 +600,11 @@ function _Debug_crash_UNUSED(identifier, fact1, fact2, fact3, fact4)
 
 function _Debug_regionToString(region)
 {
-	if (region.I.z === region.N.z)
+	if (region.I.z === region.O.z)
 	{
 		return 'on line ' + region.I.z;
 	}
-	return 'on lines ' + region.I.z + ' through ' + region.N.z;
+	return 'on lines ' + region.I.z + ' through ' + region.O.z;
 }
 
 
@@ -1857,9 +1857,9 @@ var _Platform_worker = F4(function(impl, flagDecoder, debugMetadata, args)
 	return _Platform_initialize(
 		flagDecoder,
 		args,
-		impl.au,
-		impl.aC,
-		impl.aA,
+		impl.ax,
+		impl.aF,
+		impl.aD,
 		function() { return function() {} }
 	);
 });
@@ -2436,13 +2436,6 @@ var $elm$core$Set$toList = function (_v0) {
 	return $elm$core$Dict$keys(dict);
 };
 var $elm$core$Basics$GT = 2;
-var $elm$core$Basics$apL = F2(
-	function (f, x) {
-		return f(x);
-	});
-var $author$project$Main$calcVotes = function (votes) {
-	return 'asdasdaoo';
-};
 var $elm$core$Result$Err = function (a) {
 	return {$: 1, a: a};
 };
@@ -2704,6 +2697,10 @@ var $elm$core$Elm$JsArray$initialize = _JsArray_initialize;
 var $elm$core$Array$Leaf = function (a) {
 	return {$: 1, a: a};
 };
+var $elm$core$Basics$apL = F2(
+	function (f, x) {
+		return f(x);
+	});
 var $elm$core$Basics$apR = F2(
 	function (x, f) {
 		return f(x);
@@ -2834,6 +2831,11 @@ var $elm$core$Result$isOk = function (result) {
 		return false;
 	}
 };
+var $elm$json$Json$Decode$andThen = _Json_andThen;
+var $elm$json$Json$Decode$field = _Json_decodeField;
+var $author$project$Main$calcVotes = function (votes) {
+	return 'TODO';
+};
 var $elm$json$Json$Encode$string = _Json_wrap;
 var $author$project$Main$getVotes = _Platform_outgoingPort('getVotes', $elm$json$Json$Encode$string);
 var $author$project$Main$init = function (votes) {
@@ -2848,14 +2850,16 @@ var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $elm$core$Platform$Sub$batch = _Platform_batch;
 var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
+var $elm$json$Json$Decode$string = _Json_decodeString;
+var $elm$json$Json$Decode$succeed = _Json_succeed;
 var $elm$core$Platform$worker = _Platform_worker;
 var $author$project$Main$main = $elm$core$Platform$worker(
 	{
-		au: $author$project$Main$init,
-		aA: function (_v0) {
+		ax: $author$project$Main$init,
+		aD: function (_v0) {
 			return $elm$core$Platform$Sub$none;
 		},
-		aC: function (_v1) {
+		aF: function (_v1) {
 			return function (_v2) {
 				return _Utils_Tuple2(
 					{},
@@ -2864,5 +2868,27 @@ var $author$project$Main$main = $elm$core$Platform$worker(
 		}
 	});
 _Platform_export({'Main':{'init':$author$project$Main$main(
-	$elm$json$Json$Decode$list(
-		$elm$json$Json$Decode$list($elm$json$Json$Decode$int)))(0)}});}(this));
+	A2(
+		$elm$json$Json$Decode$andThen,
+		function (votes) {
+			return A2(
+				$elm$json$Json$Decode$andThen,
+				function (seats) {
+					return A2(
+						$elm$json$Json$Decode$andThen,
+						function (candidates) {
+							return $elm$json$Json$Decode$succeed(
+								{L: candidates, af: seats, ak: votes});
+						},
+						A2(
+							$elm$json$Json$Decode$field,
+							'candidates',
+							$elm$json$Json$Decode$list($elm$json$Json$Decode$string)));
+				},
+				A2($elm$json$Json$Decode$field, 'seats', $elm$json$Json$Decode$int));
+		},
+		A2(
+			$elm$json$Json$Decode$field,
+			'votes',
+			$elm$json$Json$Decode$list(
+				$elm$json$Json$Decode$list($elm$json$Json$Decode$int)))))(0)}});}(this));

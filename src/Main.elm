@@ -9,7 +9,10 @@ main =
 
 
 type alias Votes =
-    List (List Int)
+    { candidates : List String
+    , seats : Int
+    , votes : List (List Int)
+    }
 
 
 init : Votes -> ( {}, Cmd msg )
