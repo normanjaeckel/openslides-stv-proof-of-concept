@@ -600,11 +600,11 @@ function _Debug_crash_UNUSED(identifier, fact1, fact2, fact3, fact4)
 
 function _Debug_regionToString(region)
 {
-	if (region.I.z === region.O.z)
+	if (region.L.z === region.Q.z)
 	{
-		return 'on line ' + region.I.z;
+		return 'on line ' + region.L.z;
 	}
-	return 'on lines ' + region.I.z + ' through ' + region.O.z;
+	return 'on lines ' + region.L.z + ' through ' + region.Q.z;
 }
 
 
@@ -2833,8 +2833,60 @@ var $elm$core$Result$isOk = function (result) {
 };
 var $elm$json$Json$Decode$andThen = _Json_andThen;
 var $elm$json$Json$Decode$field = _Json_decodeField;
-var $author$project$Main$calcVotes = function (votes) {
-	return 'TODO';
+var $elm$core$List$any = F2(
+	function (isOkay, list) {
+		any:
+		while (true) {
+			if (!list.b) {
+				return false;
+			} else {
+				var x = list.a;
+				var xs = list.b;
+				if (isOkay(x)) {
+					return true;
+				} else {
+					var $temp$isOkay = isOkay,
+						$temp$list = xs;
+					isOkay = $temp$isOkay;
+					list = $temp$list;
+					continue any;
+				}
+			}
+		}
+	});
+var $elm$core$Basics$composeL = F3(
+	function (g, f, x) {
+		return g(
+			f(x));
+	});
+var $elm$core$Basics$not = _Basics_not;
+var $elm$core$List$all = F2(
+	function (isOkay, list) {
+		return !A2(
+			$elm$core$List$any,
+			A2($elm$core$Basics$composeL, $elm$core$Basics$not, isOkay),
+			list);
+	});
+var $author$project$Main$validate = function (poll) {
+	var c = $elm$core$List$length(poll.F);
+	return A2(
+		$elm$core$List$all,
+		function (b) {
+			return _Utils_eq(
+				$elm$core$List$length(b),
+				c);
+		},
+		poll.E) ? ((poll.J <= 0) ? $elm$core$Result$Err('There must be at least one open seat') : $elm$core$Result$Ok('good')) : $elm$core$Result$Err('At least one vote has not the length of the list of candidates');
+};
+var $author$project$Main$calcVotes = function (poll) {
+	var _v0 = $author$project$Main$validate(poll);
+	if (_v0.$ === 1) {
+		var e = _v0.a;
+		return e;
+	} else {
+		var validPoll = _v0.a;
+		return 'TODO';
+	}
 };
 var $elm$json$Json$Encode$string = _Json_wrap;
 var $author$project$Main$getVotes = _Platform_outgoingPort('getVotes', $elm$json$Json$Encode$string);
@@ -2870,25 +2922,25 @@ var $author$project$Main$main = $elm$core$Platform$worker(
 _Platform_export({'Main':{'init':$author$project$Main$main(
 	A2(
 		$elm$json$Json$Decode$andThen,
-		function (votes) {
+		function (seats) {
 			return A2(
 				$elm$json$Json$Decode$andThen,
-				function (seats) {
+				function (candidates) {
 					return A2(
 						$elm$json$Json$Decode$andThen,
-						function (candidates) {
+						function (ballots) {
 							return $elm$json$Json$Decode$succeed(
-								{L: candidates, af: seats, ak: votes});
+								{E: ballots, F: candidates, J: seats});
 						},
 						A2(
 							$elm$json$Json$Decode$field,
-							'candidates',
-							$elm$json$Json$Decode$list($elm$json$Json$Decode$string)));
+							'ballots',
+							$elm$json$Json$Decode$list(
+								$elm$json$Json$Decode$list($elm$json$Json$Decode$int))));
 				},
-				A2($elm$json$Json$Decode$field, 'seats', $elm$json$Json$Decode$int));
+				A2(
+					$elm$json$Json$Decode$field,
+					'candidates',
+					$elm$json$Json$Decode$list($elm$json$Json$Decode$string)));
 		},
-		A2(
-			$elm$json$Json$Decode$field,
-			'votes',
-			$elm$json$Json$Decode$list(
-				$elm$json$Json$Decode$list($elm$json$Json$Decode$int)))))(0)}});}(this));
+		A2($elm$json$Json$Decode$field, 'seats', $elm$json$Json$Decode$int)))(0)}});}(this));
