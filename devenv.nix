@@ -6,6 +6,7 @@
   packages = [
     pkgs.git
     pkgs.go-task
+    pkgs.elmPackages.elm-test
    ];
 
   languages.elm.enable = true;

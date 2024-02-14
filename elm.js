@@ -600,11 +600,11 @@ function _Debug_crash_UNUSED(identifier, fact1, fact2, fact3, fact4)
 
 function _Debug_regionToString(region)
 {
-	if (region.L.z === region.Q.z)
+	if (region.ax._ === region.aK._)
 	{
-		return 'on line ' + region.L.z;
+		return 'on line ' + region.ax._;
 	}
-	return 'on lines ' + region.L.z + ' through ' + region.Q.z;
+	return 'on lines ' + region.ax._ + ' through ' + region.aK._;
 }
 
 
@@ -1857,9 +1857,9 @@ var _Platform_worker = F4(function(impl, flagDecoder, debugMetadata, args)
 	return _Platform_initialize(
 		flagDecoder,
 		args,
-		impl.ax,
-		impl.aF,
-		impl.aD,
+		impl.bK,
+		impl.cb,
+		impl.b6,
 		function() { return function() {} }
 	);
 });
@@ -2762,25 +2762,25 @@ var $elm$core$Array$treeFromBuilder = F2(
 	});
 var $elm$core$Array$builderToArray = F2(
 	function (reverseNodeList, builder) {
-		if (!builder.a) {
+		if (!builder.f) {
 			return A4(
 				$elm$core$Array$Array_elm_builtin,
-				$elm$core$Elm$JsArray$length(builder.c),
+				$elm$core$Elm$JsArray$length(builder.i),
 				$elm$core$Array$shiftStep,
 				$elm$core$Elm$JsArray$empty,
-				builder.c);
+				builder.i);
 		} else {
-			var treeLen = builder.a * $elm$core$Array$branchFactor;
+			var treeLen = builder.f * $elm$core$Array$branchFactor;
 			var depth = $elm$core$Basics$floor(
 				A2($elm$core$Basics$logBase, $elm$core$Array$branchFactor, treeLen - 1));
-			var correctNodeList = reverseNodeList ? $elm$core$List$reverse(builder.d) : builder.d;
-			var tree = A2($elm$core$Array$treeFromBuilder, correctNodeList, builder.a);
+			var correctNodeList = reverseNodeList ? $elm$core$List$reverse(builder.j) : builder.j;
+			var tree = A2($elm$core$Array$treeFromBuilder, correctNodeList, builder.f);
 			return A4(
 				$elm$core$Array$Array_elm_builtin,
-				$elm$core$Elm$JsArray$length(builder.c) + treeLen,
+				$elm$core$Elm$JsArray$length(builder.i) + treeLen,
 				A2($elm$core$Basics$max, 5, depth * $elm$core$Array$shiftStep),
 				tree,
-				builder.c);
+				builder.i);
 		}
 	});
 var $elm$core$Basics$idiv = _Basics_idiv;
@@ -2793,7 +2793,7 @@ var $elm$core$Array$initializeHelp = F5(
 				return A2(
 					$elm$core$Array$builderToArray,
 					false,
-					{d: nodeList, a: (len / $elm$core$Array$branchFactor) | 0, c: tail});
+					{j: nodeList, f: (len / $elm$core$Array$branchFactor) | 0, i: tail});
 			} else {
 				var leaf = $elm$core$Array$Leaf(
 					A3($elm$core$Elm$JsArray$initialize, $elm$core$Array$branchFactor, fromIndex, fn));
@@ -2868,7 +2868,7 @@ var $elm$core$List$all = F2(
 			list);
 	});
 var $author$project$Main$validate = function (poll) {
-	var c = $elm$core$List$length(poll.F);
+	var c = $elm$core$List$length(poll.an);
 	return A2(
 		$elm$core$List$all,
 		function (b) {
@@ -2876,7 +2876,7 @@ var $author$project$Main$validate = function (poll) {
 				$elm$core$List$length(b),
 				c);
 		},
-		poll.E) ? ((poll.J <= 0) ? $elm$core$Result$Err('There must be at least one open seat') : $elm$core$Result$Ok('good')) : $elm$core$Result$Err('At least one vote has not the length of the list of candidates');
+		poll.am) ? ((poll.av <= 0) ? $elm$core$Result$Err('There must be at least one open seat') : $elm$core$Result$Ok('good')) : $elm$core$Result$Err('At least one vote has not the length of the list of candidates');
 };
 var $author$project$Main$calcVotes = function (poll) {
 	var _v0 = $author$project$Main$validate(poll);
@@ -2907,11 +2907,11 @@ var $elm$json$Json$Decode$succeed = _Json_succeed;
 var $elm$core$Platform$worker = _Platform_worker;
 var $author$project$Main$main = $elm$core$Platform$worker(
 	{
-		ax: $author$project$Main$init,
-		aD: function (_v0) {
+		bK: $author$project$Main$init,
+		b6: function (_v0) {
 			return $elm$core$Platform$Sub$none;
 		},
-		aF: function (_v1) {
+		cb: function (_v1) {
 			return function (_v2) {
 				return _Utils_Tuple2(
 					{},
@@ -2930,7 +2930,7 @@ _Platform_export({'Main':{'init':$author$project$Main$main(
 						$elm$json$Json$Decode$andThen,
 						function (ballots) {
 							return $elm$json$Json$Decode$succeed(
-								{E: ballots, F: candidates, J: seats});
+								{am: ballots, an: candidates, av: seats});
 						},
 						A2(
 							$elm$json$Json$Decode$field,
