@@ -600,11 +600,11 @@ function _Debug_crash_UNUSED(identifier, fact1, fact2, fact3, fact4)
 
 function _Debug_regionToString(region)
 {
-	if (region.ax._ === region.aK._)
+	if (region.aB.ab === region.aO.ab)
 	{
-		return 'on line ' + region.ax._;
+		return 'on line ' + region.aB.ab;
 	}
-	return 'on lines ' + region.ax._ + ' through ' + region.aK._;
+	return 'on lines ' + region.aB.ab + ' through ' + region.aO.ab;
 }
 
 
@@ -1857,9 +1857,9 @@ var _Platform_worker = F4(function(impl, flagDecoder, debugMetadata, args)
 	return _Platform_initialize(
 		flagDecoder,
 		args,
-		impl.bK,
-		impl.cb,
-		impl.b6,
+		impl.bO,
+		impl.cf,
+		impl.ca,
 		function() { return function() {} }
 	);
 });
@@ -2833,6 +2833,7 @@ var $elm$core$Result$isOk = function (result) {
 };
 var $elm$json$Json$Decode$andThen = _Json_andThen;
 var $elm$json$Json$Decode$field = _Json_decodeField;
+var $elm$json$Json$Decode$index = _Json_decodeIndex;
 var $elm$core$List$any = F2(
 	function (isOkay, list) {
 		any:
@@ -2868,15 +2869,16 @@ var $elm$core$List$all = F2(
 			list);
 	});
 var $author$project$Main$validate = function (poll) {
-	var c = $elm$core$List$length(poll.an);
+	var c = $elm$core$List$length(poll.ar);
 	return A2(
 		$elm$core$List$all,
-		function (b) {
+		function (_v0) {
+			var b = _v0.a;
 			return _Utils_eq(
 				$elm$core$List$length(b),
 				c);
 		},
-		poll.am) ? ((poll.av <= 0) ? $elm$core$Result$Err('There must be at least one open seat') : $elm$core$Result$Ok('good')) : $elm$core$Result$Err('At least one vote has not the length of the list of candidates');
+		poll.I) ? ((poll.az <= 0) ? $elm$core$Result$Err('There must be at least one open seat') : $elm$core$Result$Ok('good')) : $elm$core$Result$Err('At least one vote has not the length of the list of candidates');
 };
 var $author$project$Main$calcVotes = function (poll) {
 	var _v0 = $author$project$Main$validate(poll);
@@ -2907,11 +2909,11 @@ var $elm$json$Json$Decode$succeed = _Json_succeed;
 var $elm$core$Platform$worker = _Platform_worker;
 var $author$project$Main$main = $elm$core$Platform$worker(
 	{
-		bK: $author$project$Main$init,
-		b6: function (_v0) {
+		bO: $author$project$Main$init,
+		ca: function (_v0) {
 			return $elm$core$Platform$Sub$none;
 		},
-		cb: function (_v1) {
+		cf: function (_v1) {
 			return function (_v2) {
 				return _Utils_Tuple2(
 					{},
@@ -2930,13 +2932,27 @@ _Platform_export({'Main':{'init':$author$project$Main$main(
 						$elm$json$Json$Decode$andThen,
 						function (ballots) {
 							return $elm$json$Json$Decode$succeed(
-								{am: ballots, an: candidates, av: seats});
+								{I: ballots, ar: candidates, az: seats});
 						},
 						A2(
 							$elm$json$Json$Decode$field,
 							'ballots',
 							$elm$json$Json$Decode$list(
-								$elm$json$Json$Decode$list($elm$json$Json$Decode$int))));
+								A2(
+									$elm$json$Json$Decode$andThen,
+									function (_v0) {
+										return A2(
+											$elm$json$Json$Decode$andThen,
+											function (_v1) {
+												return $elm$json$Json$Decode$succeed(
+													_Utils_Tuple2(_v0, _v1));
+											},
+											A2($elm$json$Json$Decode$index, 1, $elm$json$Json$Decode$int));
+									},
+									A2(
+										$elm$json$Json$Decode$index,
+										0,
+										$elm$json$Json$Decode$list($elm$json$Json$Decode$int))))));
 				},
 				A2(
 					$elm$json$Json$Decode$field,

@@ -1,4 +1,21 @@
-port module Main exposing (AddOn, BallotWeights, Ballots, CandidatePosition, ElectedOrRejected(..), Quota, RemainingSeats, VoteWeight, calcQuota, countVotes, electOrReject, firstPreferences, main)
+port module Main exposing
+    ( AddOn
+    , Ballots
+    , CandidatePosition
+    , ElectedOrRejected(..)
+    , PollData
+    , Quota
+    , RemainingSeats
+    , VoteWeight
+    , calcQuota
+    , countVotes
+    , electOrReject
+    , main
+    , recomputeWeights
+    , runOneRound
+    , shiftBallots
+    , weightedFirstPreferences
+    )
 
 import Dict
 import Platform
@@ -25,19 +42,19 @@ type alias CandidatePosition =
 
 
 type alias Ballots =
-    List Ballot
+    List ( Ballot, VoteWeight )
 
 
 type alias Ballot =
-    List Int
+    List Rank
+
+
+type alias Rank =
+    Int
 
 
 type alias VoteWeight =
     Int
-
-
-type alias BallotWeights =
-    List VoteWeight
 
 
 type alias RemainingSeats =
@@ -53,12 +70,25 @@ type alias Quota =
 
 
 type ElectedOrRejected
-    = IsElected Int
-    | IsRejected Int
+    = IsElected CandidatePosition VoteWeight
+    | IsRejected CandidatePosition
 
 
 type alias Elected =
-    List String
+    List CandidatePosition
+
+
+type alias Rejected =
+    List CandidatePosition
+
+
+type alias PollData =
+    { numOfCandidates : Int
+    , ballots : Ballots
+    , remainingSeats : RemainingSeats
+    , elected : Elected
+    , rejected : Rejected
+    }
 
 
 init : Poll -> ( {}, Cmd msg )
@@ -89,12 +119,12 @@ validate poll =
         c =
             List.length poll.candidates
     in
-    if poll.ballots |> List.all (\b -> List.length b == c) then
+    if poll.ballots |> List.all (\( b, _ ) -> List.length b == c) then
         if poll.seats <= 0 then
             Err "There must be at least one open seat"
 
         else
-            -- TODO: Test that every ballot has differnt numbers (except 0)
+            -- TODO: Test that every ballot has aufsteigende Nummern und dass bei Gleichrang entsprechende Lücken bleiben, also 1,1,3,4,5 und nicht 1,1,2,3,4.
             Ok "good"
 
     else
@@ -106,77 +136,120 @@ defaultAddOn =
     1
 
 
-walkHelper : Ballots -> BallotWeights -> RemainingSeats -> Elected -> Elected
-walkHelper ballots ballotWeight remainingSeats elected =
-    if remainingSeats == 0 then
-        elected
+walkHelper : PollData -> Elected
+walkHelper pollData =
+    if pollData.remainingSeats == 0 then
+        pollData.elected
 
     else
-        let
-            votes : Dict.Dict CandidatePosition VoteWeight
-            votes =
-                firstPreferences ballots ballotWeight
-                    |> countVotes
-
-            quota : Quota
-            quota =
-                calcQuota remainingSeats defaultAddOn votes
-        in
-        [ "winner" ]
+        walkHelper <| runOneRound pollData
 
 
-firstPreferences : Ballots -> BallotWeights -> List ( CandidatePosition, VoteWeight )
-firstPreferences ballots ballotWeight =
+runOneRound : PollData -> PollData
+runOneRound { numOfCandidates, ballots, remainingSeats, elected, rejected } =
     let
-        fn : ( Ballot, Int ) -> ( CandidatePosition, VoteWeight )
-        fn ( ballot, weight ) =
+        wFP : List (List VoteWeight)
+        wFP =
+            weightedFirstPreferences ballots
+
+        votes : Dict.Dict CandidatePosition VoteWeight
+        votes =
+            countVotes numOfCandidates wFP
+
+        quota : Quota
+        quota =
+            calcQuota remainingSeats defaultAddOn votes
+
+        electedOrRejected : ElectedOrRejected
+        electedOrRejected =
+            electOrReject quota votes
+    in
+    case electedOrRejected of
+        IsElected cand summarizedVoteWeight ->
             let
-                votedFor : Int
-                votedFor =
-                    ballot
-                        |> List.foldl
-                            (\rank ( idx, pos ) ->
-                                case pos of
-                                    Just _ ->
-                                        ( 0, pos )
-
-                                    Nothing ->
-                                        if rank == 1 then
-                                            ( 0, Just (idx + 1) )
-
-                                        else
-                                            ( idx + 1, Nothing )
-                            )
-                            ( 0, Nothing )
-                        |> (\( _, pos ) -> pos |> Maybe.withDefault 0)
+                newBallots : Ballots
+                newBallots =
+                    ballots
+                        |> recomputeWeights cand quota summarizedVoteWeight wFP
+                        |> shiftBallots cand
             in
-            ( votedFor, weight )
-    in
-    List.map2 Tuple.pair ballots ballotWeight |> List.map fn
+            { numOfCandidates = numOfCandidates
+            , ballots = newBallots
+            , remainingSeats = remainingSeats - 1
+            , elected = cand :: elected
+            , rejected = rejected
+            }
+
+        IsRejected cand ->
+            let
+                newBallots : Ballots
+                newBallots =
+                    shiftBallots cand ballots
+            in
+            { numOfCandidates = numOfCandidates
+            , ballots = newBallots
+            , remainingSeats = remainingSeats
+            , elected = elected
+            , rejected = cand :: rejected
+            }
 
 
-countVotes : List ( CandidatePosition, VoteWeight ) -> Dict.Dict CandidatePosition VoteWeight
-countVotes firstPrefs =
-    let
-        initialVotes =
-            Dict.empty
-    in
-    firstPrefs
-        |> List.foldl
-            (\( votedFor, weight ) votes ->
-                votes
-                    |> Dict.update
-                        votedFor
-                        (\current ->
-                            case current of
-                                Nothing ->
-                                    Just weight
+weightedFirstPreferences : Ballots -> List (List VoteWeight)
+weightedFirstPreferences ballots =
+    ballots
+        |> List.map
+            (\( ballot, voteWeight ) ->
+                let
+                    countRankOne : Int
+                    countRankOne =
+                        ballot |> List.filter (\rank -> rank == 1) |> List.length
+                in
+                ballot
+                    |> List.map
+                        (\rank ->
+                            if rank == 1 then
+                                voteWeight // countRankOne
 
-                                Just v ->
-                                    Just <| weight + v
+                            else
+                                0
                         )
             )
-            initialVotes
+
+
+countVotes : Int -> List (List VoteWeight) -> Dict.Dict CandidatePosition VoteWeight
+countVotes numOfCandidates wFP =
+    let
+        initialVotes : Dict.Dict CandidatePosition VoteWeight
+        initialVotes =
+            List.range 1 numOfCandidates |> List.map (\i -> ( i, 0 )) |> Dict.fromList
+
+        fn : List VoteWeight -> Dict.Dict CandidatePosition VoteWeight -> Dict.Dict CandidatePosition VoteWeight
+        fn ballot votes =
+            ballot
+                |> List.foldl
+                    (\voteWeight ( state, idx ) ->
+                        if voteWeight > 0 then
+                            ( state
+                                |> Dict.update
+                                    (idx + 1)
+                                    (\val ->
+                                        case val of
+                                            Nothing ->
+                                                Just voteWeight
+
+                                            Just oldVoteWeight ->
+                                                Just (voteWeight + oldVoteWeight)
+                                    )
+                            , idx + 1
+                            )
+
+                        else
+                            ( state, idx + 1 )
+                    )
+                    ( votes, 0 )
+                |> Tuple.first
+    in
+    wFP |> List.foldl fn initialVotes
 
 
 calcQuota : RemainingSeats -> AddOn -> Dict.Dict CandidatePosition VoteWeight -> Quota
@@ -191,8 +264,8 @@ calcQuota remainingSeats addOn votes =
 electOrReject : Quota -> Dict.Dict CandidatePosition VoteWeight -> ElectedOrRejected
 electOrReject quota votes =
     let
-        fn : CandidatePosition -> VoteWeight -> ( List CandidatePosition, VoteWeight ) -> ( List CandidatePosition, VoteWeight )
-        fn k v ( w, current ) =
+        fn1 : CandidatePosition -> VoteWeight -> ( List CandidatePosition, VoteWeight ) -> ( List CandidatePosition, VoteWeight )
+        fn1 k v ( w, current ) =
             if v >= quota then
                 if v > current then
                     ( [ k ], v )
@@ -206,19 +279,102 @@ electOrReject quota votes =
             else
                 ( w, current )
 
-        winners : List CandidatePosition
+        winners : ( List CandidatePosition, VoteWeight )
         winners =
-            votes |> Dict.foldl fn ( [], 0 ) |> Tuple.first
+            votes |> Dict.foldl fn1 ( [], 0 )
     in
-    case winners of
+    case Tuple.first winners of
         [] ->
-            -- TODO: Calc looser
-            IsRejected 42
+            let
+                minVoteWeight : VoteWeight
+                minVoteWeight =
+                    votes |> Dict.values |> List.minimum |> Maybe.withDefault 0
+
+                loosers : List CandidatePosition
+                loosers =
+                    votes |> Dict.filter (\_ v -> v == minVoteWeight) |> Dict.keys
+            in
+            IsRejected (getSingleLooser loosers)
+
+        first :: rest ->
+            IsElected (getSingleWinner first rest) (Tuple.second winners)
+
+
+getSingleWinner : CandidatePosition -> List CandidatePosition -> CandidatePosition
+getSingleWinner first rest =
+    if List.isEmpty rest then
+        first
+
+    else
+        -- TODO: Tie break winners
+        42
+
+
+getSingleLooser : List CandidatePosition -> CandidatePosition
+getSingleLooser loosers =
+    case loosers of
+        [] ->
+            -- Impossible state
+            0
 
         first :: rest ->
             if List.isEmpty rest then
-                IsElected first
+                first
 
             else
-                -- Tie break winners
-                IsRejected 42
+                -- TODO: Tie break loosers
+                42
+
+
+recomputeWeights : CandidatePosition -> Quota -> VoteWeight -> List (List VoteWeight) -> Ballots -> Ballots
+recomputeWeights cand quota summarizedVoteWeight wFP ballots =
+    List.map2
+        (\( ballot, _ ) voteWeights ->
+            let
+                total : VoteWeight
+                total =
+                    List.sum voteWeights
+
+                voteWeightForCand : VoteWeight
+                voteWeightForCand =
+                    voteWeights |> List.drop (cand - 1) |> List.head |> Maybe.withDefault 0
+
+                newVoteWeight : VoteWeight
+                newVoteWeight =
+                    total - voteWeightForCand + (voteWeightForCand * (summarizedVoteWeight - quota) // summarizedVoteWeight)
+            in
+            ( ballot, newVoteWeight )
+        )
+        ballots
+        wFP
+
+
+shiftBallots : CandidatePosition -> Ballots -> Ballots
+shiftBallots pos ballots =
+    ballots
+        |> List.map
+            (\( ballot, weight ) ->
+                case ballot |> List.drop (pos - 1) |> List.head of
+                    Nothing ->
+                        -- Impossible state
+                        ( ballot, weight )
+
+                    Just rank ->
+                        let
+                            newBallot : Ballot
+                            newBallot =
+                                ballot
+                                    |> List.indexedMap
+                                        (\idx v ->
+                                            if idx + 1 == pos then
+                                                0
+
+                                            else if v <= rank then
+                                                v
+
+                                            else
+                                                v - 1
+                                        )
+                        in
+                        ( newBallot, weight )
+            )
