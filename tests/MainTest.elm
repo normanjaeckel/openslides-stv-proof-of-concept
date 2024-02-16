@@ -5,9 +5,11 @@ import Expect
 import Main
     exposing
         ( AddOn
-        , Ballots
+        , BallotsWithWeight
         , CandidatePosition
+        , Elected
         , ElectedOrRejected(..)
+        , Poll
         , PollData
         , Quota
         , RemainingSeats
@@ -17,6 +19,7 @@ import Main
         , electOrReject
         , recomputeWeights
         , runOneRound
+        , runSTVAlgorithm
         , shiftBallots
         , weightedFirstPreferences
         )
@@ -26,7 +29,29 @@ import Test exposing (..)
 suite : Test
 suite =
     describe "The"
-        [ describe "runOneRound function"
+        [ describe "runSTVAlgorithm function"
+            [ test "works fine with some poll data" <|
+                \_ ->
+                    let
+                        poll : Poll
+                        poll =
+                            { candidates = [ "John", "Anna", "Eli" ]
+                            , seats = 2
+                            , ballots =
+                                [ [ 3, 1, 2 ]
+                                , [ 3, 1, 2 ]
+                                , [ 3, 2, 1 ]
+                                , [ 1, 3, 2 ]
+                                ]
+                            }
+
+                        expected : Elected
+                        expected =
+                            [ 2, 3 ]
+                    in
+                    runSTVAlgorithm poll |> Expect.equal expected
+            ]
+        , describe "runOneRound function"
             [ test "works fine with some poll data" <|
                 \_ ->
                     let
@@ -176,7 +201,7 @@ suite =
             [ test "works fine with some ballots" <|
                 \_ ->
                     let
-                        ballots : Ballots
+                        ballots : BallotsWithWeight
                         ballots =
                             [ ( [ 1, 2, 3, 4, 5 ], 10 )
                             , ( [ 2, 1, 3, 5, 4 ], 20 )
@@ -195,7 +220,7 @@ suite =
             , test "works fine with many ballots" <|
                 \_ ->
                     let
-                        ballots : Ballots
+                        ballots : BallotsWithWeight
                         ballots =
                             [ ( [ 1, 5, 2, 3, 4 ], 1 )
                             , ( [ 2, 1, 3, 5, 4 ], 2 )
@@ -248,7 +273,7 @@ suite =
             , test "works fine with ballots without first preference" <|
                 \_ ->
                     let
-                        ballots : Ballots
+                        ballots : BallotsWithWeight
                         ballots =
                             [ ( [ 1, 2, 3, 4, 5 ], 10 )
                             , ( [ 2, 3, 4, 5, 0 ], 20 )
@@ -265,7 +290,7 @@ suite =
             , test "works fine with ballots without equal preference" <|
                 \_ ->
                     let
-                        ballots : Ballots
+                        ballots : BallotsWithWeight
                         ballots =
                             [ ( [ 1, 1, 3, 4, 5 ], 10 )
                             , ( [ 1, 2, 3, 3, 0 ], 20 )
@@ -401,7 +426,7 @@ suite =
             [ test "works fine with some ballots" <|
                 \_ ->
                     let
-                        ballots : Ballots
+                        ballots : BallotsWithWeight
                         ballots =
                             [ ( [ 2, 1, 3, 4, 5 ], 15 )
                             , ( [ 1, 2, 3, 4, 5 ], 10 )
@@ -415,7 +440,7 @@ suite =
                             , [ 10, 10, 0, 0, 0 ]
                             ]
 
-                        expected : Ballots
+                        expected : BallotsWithWeight
                         expected =
                             [ ( [ 2, 1, 3, 4, 5 ], 5 )
                             , ( [ 1, 2, 3, 4, 5 ], 10 )
@@ -426,7 +451,7 @@ suite =
             , test "works fine with some ballots with precision 1000" <|
                 \_ ->
                     let
-                        ballots : Ballots
+                        ballots : BallotsWithWeight
                         ballots =
                             [ ( [ 2, 1, 3, 4, 5 ], 15000 )
                             , ( [ 1, 2, 3, 4, 5 ], 10000 )
@@ -440,7 +465,7 @@ suite =
                             , [ 10000, 10000, 0, 0, 0 ]
                             ]
 
-                        expected : Ballots
+                        expected : BallotsWithWeight
                         expected =
                             [ ( [ 2, 1, 3, 4, 5 ], 5400 )
                             , ( [ 1, 2, 3, 4, 5 ], 10000 )
@@ -453,7 +478,7 @@ suite =
             [ test "works fine with some ballots" <|
                 \_ ->
                     let
-                        ballots : Ballots
+                        ballots : BallotsWithWeight
                         ballots =
                             [ ( [ 1, 2, 3 ], 1 )
                             , ( [ 0, 0, 0 ], 1 )
@@ -462,7 +487,7 @@ suite =
                             , ( [ 2, 2, 4 ], 1 )
                             ]
 
-                        expected : Ballots
+                        expected : BallotsWithWeight
                         expected =
                             [ ( [ 1, 0, 2 ], 1 )
                             , ( [ 0, 0, 0 ], 1 )

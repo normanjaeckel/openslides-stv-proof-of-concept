@@ -1,8 +1,10 @@
 port module Main exposing
     ( AddOn
-    , Ballots
+    , BallotsWithWeight
     , CandidatePosition
+    , Elected
     , ElectedOrRejected(..)
+    , Poll
     , PollData
     , Quota
     , RemainingSeats
@@ -13,6 +15,7 @@ port module Main exposing
     , main
     , recomputeWeights
     , runOneRound
+    , runSTVAlgorithm
     , shiftBallots
     , weightedFirstPreferences
     )
@@ -29,7 +32,7 @@ main =
 type alias Poll =
     { candidates : List Candidate
     , seats : Int
-    , ballots : Ballots
+    , ballots : List Ballot
     }
 
 
@@ -41,7 +44,7 @@ type alias CandidatePosition =
     Int
 
 
-type alias Ballots =
+type alias BallotsWithWeight =
     List ( Ballot, VoteWeight )
 
 
@@ -84,7 +87,7 @@ type alias Rejected =
 
 type alias PollData =
     { numOfCandidates : Int
-    , ballots : Ballots
+    , ballots : BallotsWithWeight
     , remainingSeats : RemainingSeats
     , elected : Elected
     , rejected : Rejected
@@ -93,42 +96,49 @@ type alias PollData =
 
 init : Poll -> ( {}, Cmd msg )
 init votes =
-    ( {}, getVotes <| calcVotes votes )
+    ( {}, getResult <| calcPollResult votes )
 
 
-port getVotes : String -> Cmd msg
+port getResult : String -> Cmd msg
 
 
 
 -- Algorithm
 
 
-calcVotes : Poll -> String
-calcVotes poll =
+calcPollResult : Poll -> String
+calcPollResult poll =
     case validate poll of
         Err e ->
             e
 
-        Ok validPoll ->
-            "TODO"
+        Ok _ ->
+            -- TODO: Transform elected list to list of names.
+            runSTVAlgorithm poll
+                |> always "End"
 
 
-validate : Poll -> Result String String
+validate : Poll -> Result String {}
 validate poll =
     let
-        c =
+        numOfCandidates : Int
+        numOfCandidates =
             List.length poll.candidates
     in
-    if poll.ballots |> List.all (\( b, _ ) -> List.length b == c) then
-        if poll.seats <= 0 then
-            Err "There must be at least one open seat"
+    if not <| (poll.ballots |> List.all (\b -> List.length b == numOfCandidates)) then
+        Err "At least one vote has not the length of the list of candidates"
 
-        else
-            -- TODO: Test that every ballot has aufsteigende Nummern und dass bei Gleichrang entsprechende Lücken bleiben, also 1,1,3,4,5 und nicht 1,1,2,3,4.
-            Ok "good"
+    else if poll.seats <= 0 then
+        Err "There must be at least one open seat"
 
     else
-        Err "At least one vote has not the length of the list of candidates"
+        -- TODO: Test that every ballot has aufsteigende Nummern und dass bei Gleichrang entsprechende Lücken bleiben, also 1,1,3,4,5 und nicht 1,1,2,3,4.
+        Ok {}
+
+
+defaultPrecision : VoteWeight
+defaultPrecision =
+    1000
 
 
 defaultAddOn : AddOn
@@ -136,13 +146,24 @@ defaultAddOn =
     1
 
 
-walkHelper : PollData -> Elected
-walkHelper pollData =
+runSTVAlgorithm : Poll -> Elected
+runSTVAlgorithm poll =
+    runSTVAlgorithmHelper
+        { numOfCandidates = List.length poll.candidates
+        , ballots = poll.ballots |> List.map (\b -> ( b, defaultPrecision ))
+        , remainingSeats = poll.seats
+        , elected = []
+        , rejected = []
+        }
+
+
+runSTVAlgorithmHelper : PollData -> Elected
+runSTVAlgorithmHelper pollData =
     if pollData.remainingSeats == 0 then
-        pollData.elected
+        pollData.elected |> List.reverse
 
     else
-        walkHelper <| runOneRound pollData
+        runSTVAlgorithmHelper <| runOneRound pollData
 
 
 runOneRound : PollData -> PollData
@@ -167,7 +188,7 @@ runOneRound { numOfCandidates, ballots, remainingSeats, elected, rejected } =
     case electedOrRejected of
         IsElected cand summarizedVoteWeight ->
             let
-                newBallots : Ballots
+                newBallots : BallotsWithWeight
                 newBallots =
                     ballots
                         |> recomputeWeights cand quota summarizedVoteWeight wFP
@@ -182,7 +203,7 @@ runOneRound { numOfCandidates, ballots, remainingSeats, elected, rejected } =
 
         IsRejected cand ->
             let
-                newBallots : Ballots
+                newBallots : BallotsWithWeight
                 newBallots =
                     shiftBallots cand ballots
             in
@@ -194,7 +215,7 @@ runOneRound { numOfCandidates, ballots, remainingSeats, elected, rejected } =
             }
 
 
-weightedFirstPreferences : Ballots -> List (List VoteWeight)
+weightedFirstPreferences : BallotsWithWeight -> List (List VoteWeight)
 weightedFirstPreferences ballots =
     ballots
         |> List.map
@@ -326,7 +347,7 @@ getSingleLooser loosers =
                 42
 
 
-recomputeWeights : CandidatePosition -> Quota -> VoteWeight -> List (List VoteWeight) -> Ballots -> Ballots
+recomputeWeights : CandidatePosition -> Quota -> VoteWeight -> List (List VoteWeight) -> BallotsWithWeight -> BallotsWithWeight
 recomputeWeights cand quota summarizedVoteWeight wFP ballots =
     List.map2
         (\( ballot, _ ) voteWeights ->
@@ -349,7 +370,7 @@ recomputeWeights cand quota summarizedVoteWeight wFP ballots =
         wFP
 
 
-shiftBallots : CandidatePosition -> Ballots -> Ballots
+shiftBallots : CandidatePosition -> BallotsWithWeight -> BallotsWithWeight
 shiftBallots pos ballots =
     ballots
         |> List.map

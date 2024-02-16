@@ -33,7 +33,7 @@
 
         document.getElementById("calcResult").addEventListener("click", function () {
             var app = Elm.Main.init({ flags: poll });
-            app.ports.getVotes.subscribe(function (result) {
+            app.ports.getResult.subscribe(function (result) {
                 console.log(result);
             })
         });

@@ -600,11 +600,11 @@ function _Debug_crash_UNUSED(identifier, fact1, fact2, fact3, fact4)
 
 function _Debug_regionToString(region)
 {
-	if (region.aB.ab === region.aO.ab)
+	if (region.aB.ac === region.aO.ac)
 	{
-		return 'on line ' + region.aB.ab;
+		return 'on line ' + region.aB.ac;
 	}
-	return 'on lines ' + region.aB.ab + ' through ' + region.aO.ab;
+	return 'on lines ' + region.aB.ac + ' through ' + region.aO.ac;
 }
 
 
@@ -2833,7 +2833,961 @@ var $elm$core$Result$isOk = function (result) {
 };
 var $elm$json$Json$Decode$andThen = _Json_andThen;
 var $elm$json$Json$Decode$field = _Json_decodeField;
-var $elm$json$Json$Decode$index = _Json_decodeIndex;
+var $elm$core$Basics$always = F2(
+	function (a, _v0) {
+		return a;
+	});
+var $author$project$Main$defaultPrecision = 1000;
+var $elm$core$List$foldrHelper = F4(
+	function (fn, acc, ctr, ls) {
+		if (!ls.b) {
+			return acc;
+		} else {
+			var a = ls.a;
+			var r1 = ls.b;
+			if (!r1.b) {
+				return A2(fn, a, acc);
+			} else {
+				var b = r1.a;
+				var r2 = r1.b;
+				if (!r2.b) {
+					return A2(
+						fn,
+						a,
+						A2(fn, b, acc));
+				} else {
+					var c = r2.a;
+					var r3 = r2.b;
+					if (!r3.b) {
+						return A2(
+							fn,
+							a,
+							A2(
+								fn,
+								b,
+								A2(fn, c, acc)));
+					} else {
+						var d = r3.a;
+						var r4 = r3.b;
+						var res = (ctr > 500) ? A3(
+							$elm$core$List$foldl,
+							fn,
+							acc,
+							$elm$core$List$reverse(r4)) : A4($elm$core$List$foldrHelper, fn, acc, ctr + 1, r4);
+						return A2(
+							fn,
+							a,
+							A2(
+								fn,
+								b,
+								A2(
+									fn,
+									c,
+									A2(fn, d, res))));
+					}
+				}
+			}
+		}
+	});
+var $elm$core$List$foldr = F3(
+	function (fn, acc, ls) {
+		return A4($elm$core$List$foldrHelper, fn, acc, 0, ls);
+	});
+var $elm$core$List$map = F2(
+	function (f, xs) {
+		return A3(
+			$elm$core$List$foldr,
+			F2(
+				function (x, acc) {
+					return A2(
+						$elm$core$List$cons,
+						f(x),
+						acc);
+				}),
+			_List_Nil,
+			xs);
+	});
+var $elm$core$List$sum = function (numbers) {
+	return A3($elm$core$List$foldl, $elm$core$Basics$add, 0, numbers);
+};
+var $elm$core$Dict$values = function (dict) {
+	return A3(
+		$elm$core$Dict$foldr,
+		F3(
+			function (key, value, valueList) {
+				return A2($elm$core$List$cons, value, valueList);
+			}),
+		_List_Nil,
+		dict);
+};
+var $author$project$Main$calcQuota = F3(
+	function (remainingSeats, addOn, votes) {
+		var allVotes = $elm$core$List$sum(
+			$elm$core$Dict$values(votes));
+		return ((allVotes / (remainingSeats + addOn)) | 0) + 1;
+	});
+var $elm$core$Dict$RBEmpty_elm_builtin = {$: -2};
+var $elm$core$Dict$empty = $elm$core$Dict$RBEmpty_elm_builtin;
+var $elm$core$Dict$Black = 1;
+var $elm$core$Dict$RBNode_elm_builtin = F5(
+	function (a, b, c, d, e) {
+		return {$: -1, a: a, b: b, c: c, d: d, e: e};
+	});
+var $elm$core$Dict$Red = 0;
+var $elm$core$Dict$balance = F5(
+	function (color, key, value, left, right) {
+		if ((right.$ === -1) && (!right.a)) {
+			var _v1 = right.a;
+			var rK = right.b;
+			var rV = right.c;
+			var rLeft = right.d;
+			var rRight = right.e;
+			if ((left.$ === -1) && (!left.a)) {
+				var _v3 = left.a;
+				var lK = left.b;
+				var lV = left.c;
+				var lLeft = left.d;
+				var lRight = left.e;
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					0,
+					key,
+					value,
+					A5($elm$core$Dict$RBNode_elm_builtin, 1, lK, lV, lLeft, lRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, 1, rK, rV, rLeft, rRight));
+			} else {
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					color,
+					rK,
+					rV,
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, key, value, left, rLeft),
+					rRight);
+			}
+		} else {
+			if ((((left.$ === -1) && (!left.a)) && (left.d.$ === -1)) && (!left.d.a)) {
+				var _v5 = left.a;
+				var lK = left.b;
+				var lV = left.c;
+				var _v6 = left.d;
+				var _v7 = _v6.a;
+				var llK = _v6.b;
+				var llV = _v6.c;
+				var llLeft = _v6.d;
+				var llRight = _v6.e;
+				var lRight = left.e;
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					0,
+					lK,
+					lV,
+					A5($elm$core$Dict$RBNode_elm_builtin, 1, llK, llV, llLeft, llRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, 1, key, value, lRight, right));
+			} else {
+				return A5($elm$core$Dict$RBNode_elm_builtin, color, key, value, left, right);
+			}
+		}
+	});
+var $elm$core$Basics$compare = _Utils_compare;
+var $elm$core$Dict$insertHelp = F3(
+	function (key, value, dict) {
+		if (dict.$ === -2) {
+			return A5($elm$core$Dict$RBNode_elm_builtin, 0, key, value, $elm$core$Dict$RBEmpty_elm_builtin, $elm$core$Dict$RBEmpty_elm_builtin);
+		} else {
+			var nColor = dict.a;
+			var nKey = dict.b;
+			var nValue = dict.c;
+			var nLeft = dict.d;
+			var nRight = dict.e;
+			var _v1 = A2($elm$core$Basics$compare, key, nKey);
+			switch (_v1) {
+				case 0:
+					return A5(
+						$elm$core$Dict$balance,
+						nColor,
+						nKey,
+						nValue,
+						A3($elm$core$Dict$insertHelp, key, value, nLeft),
+						nRight);
+				case 1:
+					return A5($elm$core$Dict$RBNode_elm_builtin, nColor, nKey, value, nLeft, nRight);
+				default:
+					return A5(
+						$elm$core$Dict$balance,
+						nColor,
+						nKey,
+						nValue,
+						nLeft,
+						A3($elm$core$Dict$insertHelp, key, value, nRight));
+			}
+		}
+	});
+var $elm$core$Dict$insert = F3(
+	function (key, value, dict) {
+		var _v0 = A3($elm$core$Dict$insertHelp, key, value, dict);
+		if ((_v0.$ === -1) && (!_v0.a)) {
+			var _v1 = _v0.a;
+			var k = _v0.b;
+			var v = _v0.c;
+			var l = _v0.d;
+			var r = _v0.e;
+			return A5($elm$core$Dict$RBNode_elm_builtin, 1, k, v, l, r);
+		} else {
+			var x = _v0;
+			return x;
+		}
+	});
+var $elm$core$Dict$fromList = function (assocs) {
+	return A3(
+		$elm$core$List$foldl,
+		F2(
+			function (_v0, dict) {
+				var key = _v0.a;
+				var value = _v0.b;
+				return A3($elm$core$Dict$insert, key, value, dict);
+			}),
+		$elm$core$Dict$empty,
+		assocs);
+};
+var $elm$core$Dict$get = F2(
+	function (targetKey, dict) {
+		get:
+		while (true) {
+			if (dict.$ === -2) {
+				return $elm$core$Maybe$Nothing;
+			} else {
+				var key = dict.b;
+				var value = dict.c;
+				var left = dict.d;
+				var right = dict.e;
+				var _v1 = A2($elm$core$Basics$compare, targetKey, key);
+				switch (_v1) {
+					case 0:
+						var $temp$targetKey = targetKey,
+							$temp$dict = left;
+						targetKey = $temp$targetKey;
+						dict = $temp$dict;
+						continue get;
+					case 1:
+						return $elm$core$Maybe$Just(value);
+					default:
+						var $temp$targetKey = targetKey,
+							$temp$dict = right;
+						targetKey = $temp$targetKey;
+						dict = $temp$dict;
+						continue get;
+				}
+			}
+		}
+	});
+var $elm$core$Dict$getMin = function (dict) {
+	getMin:
+	while (true) {
+		if ((dict.$ === -1) && (dict.d.$ === -1)) {
+			var left = dict.d;
+			var $temp$dict = left;
+			dict = $temp$dict;
+			continue getMin;
+		} else {
+			return dict;
+		}
+	}
+};
+var $elm$core$Dict$moveRedLeft = function (dict) {
+	if (((dict.$ === -1) && (dict.d.$ === -1)) && (dict.e.$ === -1)) {
+		if ((dict.e.d.$ === -1) && (!dict.e.d.a)) {
+			var clr = dict.a;
+			var k = dict.b;
+			var v = dict.c;
+			var _v1 = dict.d;
+			var lClr = _v1.a;
+			var lK = _v1.b;
+			var lV = _v1.c;
+			var lLeft = _v1.d;
+			var lRight = _v1.e;
+			var _v2 = dict.e;
+			var rClr = _v2.a;
+			var rK = _v2.b;
+			var rV = _v2.c;
+			var rLeft = _v2.d;
+			var _v3 = rLeft.a;
+			var rlK = rLeft.b;
+			var rlV = rLeft.c;
+			var rlL = rLeft.d;
+			var rlR = rLeft.e;
+			var rRight = _v2.e;
+			return A5(
+				$elm$core$Dict$RBNode_elm_builtin,
+				0,
+				rlK,
+				rlV,
+				A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					1,
+					k,
+					v,
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, lK, lV, lLeft, lRight),
+					rlL),
+				A5($elm$core$Dict$RBNode_elm_builtin, 1, rK, rV, rlR, rRight));
+		} else {
+			var clr = dict.a;
+			var k = dict.b;
+			var v = dict.c;
+			var _v4 = dict.d;
+			var lClr = _v4.a;
+			var lK = _v4.b;
+			var lV = _v4.c;
+			var lLeft = _v4.d;
+			var lRight = _v4.e;
+			var _v5 = dict.e;
+			var rClr = _v5.a;
+			var rK = _v5.b;
+			var rV = _v5.c;
+			var rLeft = _v5.d;
+			var rRight = _v5.e;
+			if (clr === 1) {
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					1,
+					k,
+					v,
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, lK, lV, lLeft, lRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, rK, rV, rLeft, rRight));
+			} else {
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					1,
+					k,
+					v,
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, lK, lV, lLeft, lRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, rK, rV, rLeft, rRight));
+			}
+		}
+	} else {
+		return dict;
+	}
+};
+var $elm$core$Dict$moveRedRight = function (dict) {
+	if (((dict.$ === -1) && (dict.d.$ === -1)) && (dict.e.$ === -1)) {
+		if ((dict.d.d.$ === -1) && (!dict.d.d.a)) {
+			var clr = dict.a;
+			var k = dict.b;
+			var v = dict.c;
+			var _v1 = dict.d;
+			var lClr = _v1.a;
+			var lK = _v1.b;
+			var lV = _v1.c;
+			var _v2 = _v1.d;
+			var _v3 = _v2.a;
+			var llK = _v2.b;
+			var llV = _v2.c;
+			var llLeft = _v2.d;
+			var llRight = _v2.e;
+			var lRight = _v1.e;
+			var _v4 = dict.e;
+			var rClr = _v4.a;
+			var rK = _v4.b;
+			var rV = _v4.c;
+			var rLeft = _v4.d;
+			var rRight = _v4.e;
+			return A5(
+				$elm$core$Dict$RBNode_elm_builtin,
+				0,
+				lK,
+				lV,
+				A5($elm$core$Dict$RBNode_elm_builtin, 1, llK, llV, llLeft, llRight),
+				A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					1,
+					k,
+					v,
+					lRight,
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, rK, rV, rLeft, rRight)));
+		} else {
+			var clr = dict.a;
+			var k = dict.b;
+			var v = dict.c;
+			var _v5 = dict.d;
+			var lClr = _v5.a;
+			var lK = _v5.b;
+			var lV = _v5.c;
+			var lLeft = _v5.d;
+			var lRight = _v5.e;
+			var _v6 = dict.e;
+			var rClr = _v6.a;
+			var rK = _v6.b;
+			var rV = _v6.c;
+			var rLeft = _v6.d;
+			var rRight = _v6.e;
+			if (clr === 1) {
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					1,
+					k,
+					v,
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, lK, lV, lLeft, lRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, rK, rV, rLeft, rRight));
+			} else {
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					1,
+					k,
+					v,
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, lK, lV, lLeft, lRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, 0, rK, rV, rLeft, rRight));
+			}
+		}
+	} else {
+		return dict;
+	}
+};
+var $elm$core$Dict$removeHelpPrepEQGT = F7(
+	function (targetKey, dict, color, key, value, left, right) {
+		if ((left.$ === -1) && (!left.a)) {
+			var _v1 = left.a;
+			var lK = left.b;
+			var lV = left.c;
+			var lLeft = left.d;
+			var lRight = left.e;
+			return A5(
+				$elm$core$Dict$RBNode_elm_builtin,
+				color,
+				lK,
+				lV,
+				lLeft,
+				A5($elm$core$Dict$RBNode_elm_builtin, 0, key, value, lRight, right));
+		} else {
+			_v2$2:
+			while (true) {
+				if ((right.$ === -1) && (right.a === 1)) {
+					if (right.d.$ === -1) {
+						if (right.d.a === 1) {
+							var _v3 = right.a;
+							var _v4 = right.d;
+							var _v5 = _v4.a;
+							return $elm$core$Dict$moveRedRight(dict);
+						} else {
+							break _v2$2;
+						}
+					} else {
+						var _v6 = right.a;
+						var _v7 = right.d;
+						return $elm$core$Dict$moveRedRight(dict);
+					}
+				} else {
+					break _v2$2;
+				}
+			}
+			return dict;
+		}
+	});
+var $elm$core$Dict$removeMin = function (dict) {
+	if ((dict.$ === -1) && (dict.d.$ === -1)) {
+		var color = dict.a;
+		var key = dict.b;
+		var value = dict.c;
+		var left = dict.d;
+		var lColor = left.a;
+		var lLeft = left.d;
+		var right = dict.e;
+		if (lColor === 1) {
+			if ((lLeft.$ === -1) && (!lLeft.a)) {
+				var _v3 = lLeft.a;
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					color,
+					key,
+					value,
+					$elm$core$Dict$removeMin(left),
+					right);
+			} else {
+				var _v4 = $elm$core$Dict$moveRedLeft(dict);
+				if (_v4.$ === -1) {
+					var nColor = _v4.a;
+					var nKey = _v4.b;
+					var nValue = _v4.c;
+					var nLeft = _v4.d;
+					var nRight = _v4.e;
+					return A5(
+						$elm$core$Dict$balance,
+						nColor,
+						nKey,
+						nValue,
+						$elm$core$Dict$removeMin(nLeft),
+						nRight);
+				} else {
+					return $elm$core$Dict$RBEmpty_elm_builtin;
+				}
+			}
+		} else {
+			return A5(
+				$elm$core$Dict$RBNode_elm_builtin,
+				color,
+				key,
+				value,
+				$elm$core$Dict$removeMin(left),
+				right);
+		}
+	} else {
+		return $elm$core$Dict$RBEmpty_elm_builtin;
+	}
+};
+var $elm$core$Dict$removeHelp = F2(
+	function (targetKey, dict) {
+		if (dict.$ === -2) {
+			return $elm$core$Dict$RBEmpty_elm_builtin;
+		} else {
+			var color = dict.a;
+			var key = dict.b;
+			var value = dict.c;
+			var left = dict.d;
+			var right = dict.e;
+			if (_Utils_cmp(targetKey, key) < 0) {
+				if ((left.$ === -1) && (left.a === 1)) {
+					var _v4 = left.a;
+					var lLeft = left.d;
+					if ((lLeft.$ === -1) && (!lLeft.a)) {
+						var _v6 = lLeft.a;
+						return A5(
+							$elm$core$Dict$RBNode_elm_builtin,
+							color,
+							key,
+							value,
+							A2($elm$core$Dict$removeHelp, targetKey, left),
+							right);
+					} else {
+						var _v7 = $elm$core$Dict$moveRedLeft(dict);
+						if (_v7.$ === -1) {
+							var nColor = _v7.a;
+							var nKey = _v7.b;
+							var nValue = _v7.c;
+							var nLeft = _v7.d;
+							var nRight = _v7.e;
+							return A5(
+								$elm$core$Dict$balance,
+								nColor,
+								nKey,
+								nValue,
+								A2($elm$core$Dict$removeHelp, targetKey, nLeft),
+								nRight);
+						} else {
+							return $elm$core$Dict$RBEmpty_elm_builtin;
+						}
+					}
+				} else {
+					return A5(
+						$elm$core$Dict$RBNode_elm_builtin,
+						color,
+						key,
+						value,
+						A2($elm$core$Dict$removeHelp, targetKey, left),
+						right);
+				}
+			} else {
+				return A2(
+					$elm$core$Dict$removeHelpEQGT,
+					targetKey,
+					A7($elm$core$Dict$removeHelpPrepEQGT, targetKey, dict, color, key, value, left, right));
+			}
+		}
+	});
+var $elm$core$Dict$removeHelpEQGT = F2(
+	function (targetKey, dict) {
+		if (dict.$ === -1) {
+			var color = dict.a;
+			var key = dict.b;
+			var value = dict.c;
+			var left = dict.d;
+			var right = dict.e;
+			if (_Utils_eq(targetKey, key)) {
+				var _v1 = $elm$core$Dict$getMin(right);
+				if (_v1.$ === -1) {
+					var minKey = _v1.b;
+					var minValue = _v1.c;
+					return A5(
+						$elm$core$Dict$balance,
+						color,
+						minKey,
+						minValue,
+						left,
+						$elm$core$Dict$removeMin(right));
+				} else {
+					return $elm$core$Dict$RBEmpty_elm_builtin;
+				}
+			} else {
+				return A5(
+					$elm$core$Dict$balance,
+					color,
+					key,
+					value,
+					left,
+					A2($elm$core$Dict$removeHelp, targetKey, right));
+			}
+		} else {
+			return $elm$core$Dict$RBEmpty_elm_builtin;
+		}
+	});
+var $elm$core$Dict$remove = F2(
+	function (key, dict) {
+		var _v0 = A2($elm$core$Dict$removeHelp, key, dict);
+		if ((_v0.$ === -1) && (!_v0.a)) {
+			var _v1 = _v0.a;
+			var k = _v0.b;
+			var v = _v0.c;
+			var l = _v0.d;
+			var r = _v0.e;
+			return A5($elm$core$Dict$RBNode_elm_builtin, 1, k, v, l, r);
+		} else {
+			var x = _v0;
+			return x;
+		}
+	});
+var $elm$core$Dict$update = F3(
+	function (targetKey, alter, dictionary) {
+		var _v0 = alter(
+			A2($elm$core$Dict$get, targetKey, dictionary));
+		if (!_v0.$) {
+			var value = _v0.a;
+			return A3($elm$core$Dict$insert, targetKey, value, dictionary);
+		} else {
+			return A2($elm$core$Dict$remove, targetKey, dictionary);
+		}
+	});
+var $author$project$Main$countVotes = F2(
+	function (numOfCandidates, wFP) {
+		var initialVotes = $elm$core$Dict$fromList(
+			A2(
+				$elm$core$List$map,
+				function (i) {
+					return _Utils_Tuple2(i, 0);
+				},
+				A2($elm$core$List$range, 1, numOfCandidates)));
+		var fn = F2(
+			function (ballot, votes) {
+				return A3(
+					$elm$core$List$foldl,
+					F2(
+						function (voteWeight, _v0) {
+							var state = _v0.a;
+							var idx = _v0.b;
+							return (voteWeight > 0) ? _Utils_Tuple2(
+								A3(
+									$elm$core$Dict$update,
+									idx + 1,
+									function (val) {
+										if (val.$ === 1) {
+											return $elm$core$Maybe$Just(voteWeight);
+										} else {
+											var oldVoteWeight = val.a;
+											return $elm$core$Maybe$Just(voteWeight + oldVoteWeight);
+										}
+									},
+									state),
+								idx + 1) : _Utils_Tuple2(state, idx + 1);
+						}),
+					_Utils_Tuple2(votes, 0),
+					ballot).a;
+			});
+		return A3($elm$core$List$foldl, fn, initialVotes, wFP);
+	});
+var $author$project$Main$defaultAddOn = 1;
+var $author$project$Main$IsElected = F2(
+	function (a, b) {
+		return {$: 0, a: a, b: b};
+	});
+var $author$project$Main$IsRejected = function (a) {
+	return {$: 1, a: a};
+};
+var $elm$core$Dict$foldl = F3(
+	function (func, acc, dict) {
+		foldl:
+		while (true) {
+			if (dict.$ === -2) {
+				return acc;
+			} else {
+				var key = dict.b;
+				var value = dict.c;
+				var left = dict.d;
+				var right = dict.e;
+				var $temp$func = func,
+					$temp$acc = A3(
+					func,
+					key,
+					value,
+					A3($elm$core$Dict$foldl, func, acc, left)),
+					$temp$dict = right;
+				func = $temp$func;
+				acc = $temp$acc;
+				dict = $temp$dict;
+				continue foldl;
+			}
+		}
+	});
+var $elm$core$Dict$filter = F2(
+	function (isGood, dict) {
+		return A3(
+			$elm$core$Dict$foldl,
+			F3(
+				function (k, v, d) {
+					return A2(isGood, k, v) ? A3($elm$core$Dict$insert, k, v, d) : d;
+				}),
+			$elm$core$Dict$empty,
+			dict);
+	});
+var $elm$core$Basics$ge = _Utils_ge;
+var $elm$core$List$isEmpty = function (xs) {
+	if (!xs.b) {
+		return true;
+	} else {
+		return false;
+	}
+};
+var $author$project$Main$getSingleLooser = function (loosers) {
+	if (!loosers.b) {
+		return 0;
+	} else {
+		var first = loosers.a;
+		var rest = loosers.b;
+		return $elm$core$List$isEmpty(rest) ? first : 42;
+	}
+};
+var $author$project$Main$getSingleWinner = F2(
+	function (first, rest) {
+		return $elm$core$List$isEmpty(rest) ? first : 42;
+	});
+var $elm$core$Basics$min = F2(
+	function (x, y) {
+		return (_Utils_cmp(x, y) < 0) ? x : y;
+	});
+var $elm$core$List$minimum = function (list) {
+	if (list.b) {
+		var x = list.a;
+		var xs = list.b;
+		return $elm$core$Maybe$Just(
+			A3($elm$core$List$foldl, $elm$core$Basics$min, x, xs));
+	} else {
+		return $elm$core$Maybe$Nothing;
+	}
+};
+var $elm$core$Tuple$second = function (_v0) {
+	var y = _v0.b;
+	return y;
+};
+var $elm$core$Maybe$withDefault = F2(
+	function (_default, maybe) {
+		if (!maybe.$) {
+			var value = maybe.a;
+			return value;
+		} else {
+			return _default;
+		}
+	});
+var $author$project$Main$electOrReject = F2(
+	function (quota, votes) {
+		var fn1 = F3(
+			function (k, v, _v2) {
+				var w = _v2.a;
+				var current = _v2.b;
+				return (_Utils_cmp(v, quota) > -1) ? ((_Utils_cmp(v, current) > 0) ? _Utils_Tuple2(
+					_List_fromArray(
+						[k]),
+					v) : (_Utils_eq(v, current) ? _Utils_Tuple2(
+					A2($elm$core$List$cons, k, w),
+					v) : _Utils_Tuple2(w, current))) : _Utils_Tuple2(w, current);
+			});
+		var winners = A3(
+			$elm$core$Dict$foldl,
+			fn1,
+			_Utils_Tuple2(_List_Nil, 0),
+			votes);
+		var _v0 = winners.a;
+		if (!_v0.b) {
+			var minVoteWeight = A2(
+				$elm$core$Maybe$withDefault,
+				0,
+				$elm$core$List$minimum(
+					$elm$core$Dict$values(votes)));
+			var loosers = $elm$core$Dict$keys(
+				A2(
+					$elm$core$Dict$filter,
+					F2(
+						function (_v1, v) {
+							return _Utils_eq(v, minVoteWeight);
+						}),
+					votes));
+			return $author$project$Main$IsRejected(
+				$author$project$Main$getSingleLooser(loosers));
+		} else {
+			var first = _v0.a;
+			var rest = _v0.b;
+			return A2(
+				$author$project$Main$IsElected,
+				A2($author$project$Main$getSingleWinner, first, rest),
+				winners.b);
+		}
+	});
+var $elm$core$List$drop = F2(
+	function (n, list) {
+		drop:
+		while (true) {
+			if (n <= 0) {
+				return list;
+			} else {
+				if (!list.b) {
+					return list;
+				} else {
+					var x = list.a;
+					var xs = list.b;
+					var $temp$n = n - 1,
+						$temp$list = xs;
+					n = $temp$n;
+					list = $temp$list;
+					continue drop;
+				}
+			}
+		}
+	});
+var $elm$core$List$head = function (list) {
+	if (list.b) {
+		var x = list.a;
+		var xs = list.b;
+		return $elm$core$Maybe$Just(x);
+	} else {
+		return $elm$core$Maybe$Nothing;
+	}
+};
+var $author$project$Main$recomputeWeights = F5(
+	function (cand, quota, summarizedVoteWeight, wFP, ballots) {
+		return A3(
+			$elm$core$List$map2,
+			F2(
+				function (_v0, voteWeights) {
+					var ballot = _v0.a;
+					var voteWeightForCand = A2(
+						$elm$core$Maybe$withDefault,
+						0,
+						$elm$core$List$head(
+							A2($elm$core$List$drop, cand - 1, voteWeights)));
+					var total = $elm$core$List$sum(voteWeights);
+					var newVoteWeight = (total - voteWeightForCand) + (((voteWeightForCand * (summarizedVoteWeight - quota)) / summarizedVoteWeight) | 0);
+					return _Utils_Tuple2(ballot, newVoteWeight);
+				}),
+			ballots,
+			wFP);
+	});
+var $author$project$Main$shiftBallots = F2(
+	function (pos, ballots) {
+		return A2(
+			$elm$core$List$map,
+			function (_v0) {
+				var ballot = _v0.a;
+				var weight = _v0.b;
+				var _v1 = $elm$core$List$head(
+					A2($elm$core$List$drop, pos - 1, ballot));
+				if (_v1.$ === 1) {
+					return _Utils_Tuple2(ballot, weight);
+				} else {
+					var rank = _v1.a;
+					var newBallot = A2(
+						$elm$core$List$indexedMap,
+						F2(
+							function (idx, v) {
+								return _Utils_eq(idx + 1, pos) ? 0 : ((_Utils_cmp(v, rank) < 1) ? v : (v - 1));
+							}),
+						ballot);
+					return _Utils_Tuple2(newBallot, weight);
+				}
+			},
+			ballots);
+	});
+var $elm$core$List$filter = F2(
+	function (isGood, list) {
+		return A3(
+			$elm$core$List$foldr,
+			F2(
+				function (x, xs) {
+					return isGood(x) ? A2($elm$core$List$cons, x, xs) : xs;
+				}),
+			_List_Nil,
+			list);
+	});
+var $author$project$Main$weightedFirstPreferences = function (ballots) {
+	return A2(
+		$elm$core$List$map,
+		function (_v0) {
+			var ballot = _v0.a;
+			var voteWeight = _v0.b;
+			var countRankOne = $elm$core$List$length(
+				A2(
+					$elm$core$List$filter,
+					function (rank) {
+						return rank === 1;
+					},
+					ballot));
+			return A2(
+				$elm$core$List$map,
+				function (rank) {
+					return (rank === 1) ? ((voteWeight / countRankOne) | 0) : 0;
+				},
+				ballot);
+		},
+		ballots);
+};
+var $author$project$Main$runOneRound = function (_v0) {
+	var rejected = _v0.af;
+	var elected = _v0.R;
+	var remainingSeats = _v0.U;
+	var ballots = _v0.B;
+	var numOfCandidates = _v0.ae;
+	var wFP = $author$project$Main$weightedFirstPreferences(ballots);
+	var votes = A2($author$project$Main$countVotes, numOfCandidates, wFP);
+	var quota = A3($author$project$Main$calcQuota, remainingSeats, $author$project$Main$defaultAddOn, votes);
+	var electedOrRejected = A2($author$project$Main$electOrReject, quota, votes);
+	if (!electedOrRejected.$) {
+		var cand = electedOrRejected.a;
+		var summarizedVoteWeight = electedOrRejected.b;
+		var newBallots = A2(
+			$author$project$Main$shiftBallots,
+			cand,
+			A5($author$project$Main$recomputeWeights, cand, quota, summarizedVoteWeight, wFP, ballots));
+		return {
+			B: newBallots,
+			R: A2($elm$core$List$cons, cand, elected),
+			ae: numOfCandidates,
+			af: rejected,
+			U: remainingSeats - 1
+		};
+	} else {
+		var cand = electedOrRejected.a;
+		var newBallots = A2($author$project$Main$shiftBallots, cand, ballots);
+		return {
+			B: newBallots,
+			R: elected,
+			ae: numOfCandidates,
+			af: A2($elm$core$List$cons, cand, rejected),
+			U: remainingSeats
+		};
+	}
+};
+var $author$project$Main$runSTVAlgorithmHelper = function (pollData) {
+	return (!pollData.U) ? $elm$core$List$reverse(pollData.R) : $author$project$Main$runSTVAlgorithmHelper(
+		$author$project$Main$runOneRound(pollData));
+};
+var $author$project$Main$runSTVAlgorithm = function (poll) {
+	return $author$project$Main$runSTVAlgorithmHelper(
+		{
+			B: A2(
+				$elm$core$List$map,
+				function (b) {
+					return _Utils_Tuple2(b, $author$project$Main$defaultPrecision);
+				},
+				poll.B),
+			R: _List_Nil,
+			ae: $elm$core$List$length(poll.ak),
+			af: _List_Nil,
+			U: poll.aq
+		});
+};
 var $elm$core$List$any = F2(
 	function (isOkay, list) {
 		any:
@@ -2869,34 +3823,36 @@ var $elm$core$List$all = F2(
 			list);
 	});
 var $author$project$Main$validate = function (poll) {
-	var c = $elm$core$List$length(poll.ar);
-	return A2(
+	var numOfCandidates = $elm$core$List$length(poll.ak);
+	return (!A2(
 		$elm$core$List$all,
-		function (_v0) {
-			var b = _v0.a;
+		function (b) {
 			return _Utils_eq(
 				$elm$core$List$length(b),
-				c);
+				numOfCandidates);
 		},
-		poll.I) ? ((poll.az <= 0) ? $elm$core$Result$Err('There must be at least one open seat') : $elm$core$Result$Ok('good')) : $elm$core$Result$Err('At least one vote has not the length of the list of candidates');
+		poll.B)) ? $elm$core$Result$Err('At least one vote has not the length of the list of candidates') : ((poll.aq <= 0) ? $elm$core$Result$Err('There must be at least one open seat') : $elm$core$Result$Ok(
+		{}));
 };
-var $author$project$Main$calcVotes = function (poll) {
+var $author$project$Main$calcPollResult = function (poll) {
 	var _v0 = $author$project$Main$validate(poll);
 	if (_v0.$ === 1) {
 		var e = _v0.a;
 		return e;
 	} else {
-		var validPoll = _v0.a;
-		return 'TODO';
+		return A2(
+			$elm$core$Basics$always,
+			'End',
+			$author$project$Main$runSTVAlgorithm(poll));
 	}
 };
 var $elm$json$Json$Encode$string = _Json_wrap;
-var $author$project$Main$getVotes = _Platform_outgoingPort('getVotes', $elm$json$Json$Encode$string);
+var $author$project$Main$getResult = _Platform_outgoingPort('getResult', $elm$json$Json$Encode$string);
 var $author$project$Main$init = function (votes) {
 	return _Utils_Tuple2(
 		{},
-		$author$project$Main$getVotes(
-			$author$project$Main$calcVotes(votes)));
+		$author$project$Main$getResult(
+			$author$project$Main$calcPollResult(votes)));
 };
 var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $elm$json$Json$Decode$list = _Json_decodeList;
@@ -2932,27 +3888,13 @@ _Platform_export({'Main':{'init':$author$project$Main$main(
 						$elm$json$Json$Decode$andThen,
 						function (ballots) {
 							return $elm$json$Json$Decode$succeed(
-								{I: ballots, ar: candidates, az: seats});
+								{B: ballots, ak: candidates, aq: seats});
 						},
 						A2(
 							$elm$json$Json$Decode$field,
 							'ballots',
 							$elm$json$Json$Decode$list(
-								A2(
-									$elm$json$Json$Decode$andThen,
-									function (_v0) {
-										return A2(
-											$elm$json$Json$Decode$andThen,
-											function (_v1) {
-												return $elm$json$Json$Decode$succeed(
-													_Utils_Tuple2(_v0, _v1));
-											},
-											A2($elm$json$Json$Decode$index, 1, $elm$json$Json$Decode$int));
-									},
-									A2(
-										$elm$json$Json$Decode$index,
-										0,
-										$elm$json$Json$Decode$list($elm$json$Json$Decode$int))))));
+								$elm$json$Json$Decode$list($elm$json$Json$Decode$int))));
 				},
 				A2(
 					$elm$json$Json$Decode$field,
