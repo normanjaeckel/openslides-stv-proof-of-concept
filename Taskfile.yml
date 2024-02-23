@@ -2,19 +2,41 @@
 
 version: '3'
 
-vars:
-  GREETING: Hello, World!
-
 tasks:
   default:
     cmds:
+      - task: format
+      - task: test
       - task: build
 
   build:
-    desc: Builds elm app
+    desc: Builds app
     cmds:
-      - elm make src/Main.elm --optimize --output elm.js
+      - roc build
+    # sources:
+    #   - ...
+    # generates:
+    #   - ...
+
+  format:
+    desc: Formats roc files
+    cmds:
+      - roc format
     sources:
-      - src/*.elm
-    generates:
-      - elm.js
+      - main.roc
+
+  test:
+    desc: Runs checks and tests
+    cmds:
+      - roc format --check
+      - roc check
+      - roc test
+    sources:
+      - main.roc
+
+  get-roc:
+    desc: Downloads the latest nightly build of roc and unzips it
+    cmds:
+      - wget https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-linux_x86_64-latest.tar.gz --output-document roc.tar.gz
+      - tar -xf roc.tar.gz
+      - rm roc.tar.gz
