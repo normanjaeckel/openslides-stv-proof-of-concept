@@ -16,6 +16,14 @@
     <button id="calcResult">Calculate vote result and look at the console ...</button>
     <p>Poll data:</p>
 
+    <script src="./main.js"></script>
+    <script>
+      load_wasm("./main.wasm").then((single_transferable_vote) => {
+        const v = single_transferable_vote(2,[[1,2,3],[2,1,3],[3,1,2]],[1,2,3]);
+        console.log(v);
+      });      
+    </script>
+
 </body>
 
 </html>
