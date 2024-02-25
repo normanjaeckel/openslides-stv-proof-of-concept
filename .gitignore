@@ -2,6 +2,9 @@
 
 # Build
 main
+*.bc
+*.o
+main.wasm
 
 # Roc
 roc_nightly*
