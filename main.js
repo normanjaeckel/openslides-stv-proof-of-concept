@@ -25,7 +25,6 @@ async function load_wasm(wasm_file) {
     },
   };
 
-
   const wasm = await WebAssembly.instantiateStreaming(fetch(wasm_file), importObj);
   const memory = wasm.instance.exports.memory;
   const single_transferable_vote = wasm.instance.exports.single_transferable_vote;
@@ -59,7 +58,6 @@ async function load_wasm(wasm_file) {
       if (!is_ok) {
         console.error(e);
       }
-
     }
   }
 }
