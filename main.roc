@@ -7,7 +7,8 @@ main : Poll -> List U32
 main = \poll ->
     when singleTransferableVote poll is
         Err _ ->
-            []
+            # TODO: Provide error message to result
+            List.repeat 0 (Num.toU64 poll.seats)
 
         Ok winners ->
             winners

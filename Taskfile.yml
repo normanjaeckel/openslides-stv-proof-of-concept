@@ -12,23 +12,23 @@ tasks:
   build:
     desc: Builds app
     cmds:
-      - roc build
-    # sources:
-    #   - ...
-    # generates:
-    #   - ...
+      - roc build --target wasm32
+    sources:
+      - main.roc
+    generates:
+      - main.wasm
 
   format:
     desc: Formats roc files
     cmds:
-      - roc format
+      - roc format main.roc
     sources:
       - main.roc
 
   test:
     desc: Runs checks and tests
     cmds:
-      - roc format --check
+      - roc format --check main.roc
       - roc check
       - roc test
     sources:

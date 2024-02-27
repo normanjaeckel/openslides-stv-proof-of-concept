@@ -8,6 +8,7 @@ main.wasm
 
 # Roc
 roc_nightly*
+roc/
 
 # Devenv and direnv
 .devenv*

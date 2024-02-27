@@ -43,9 +43,9 @@
     document.getElementById("votes").textContent = JSON.stringify(votes);
     document.getElementById("tieRank").textContent = JSON.stringify(tieRank);
 
-    load_wasm("./main.wasm").then(function (single_transferable_vote) {
-      document.getElementById("calcResult").onclick() = function () {
-        const result = single_transferable_vote(seats, votes, tieRank);
+    load_wasm("./main.wasm").then(function (singleTransferableVote) {
+      document.getElementById("calcResult").onclick = function () {
+        const result = singleTransferableVote(seats, votes, tieRank);
         document.getElementById("result").textContent = JSON.stringify(result);
       };
     });
