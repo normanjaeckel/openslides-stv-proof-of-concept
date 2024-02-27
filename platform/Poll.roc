@@ -1,10 +1,10 @@
 interface Poll
     exposes [
         Poll,
+        Preference,
         Vote,
     ]
     imports []
-
 
 Poll : {
     seats : U32,
@@ -12,4 +12,6 @@ Poll : {
     tieRank : List U32,
 }
 
-Vote : List U32
+Vote : List Preference
+
+Preference : U32
