@@ -1,6 +1,7 @@
 interface Poll
     exposes [
         Poll,
+        PollError,
         Preference,
         Vote,
     ]
@@ -15,3 +16,10 @@ Poll : {
 Vote : List Preference
 
 Preference : U32
+
+PollError : [
+    ZeroSeats,
+    MoreSeatsThanCandidates,
+    IdenticalTieRanks,
+    InvalidVoteLength,
+]

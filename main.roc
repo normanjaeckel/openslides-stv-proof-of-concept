@@ -1,23 +1,17 @@
 app "single-transferable-vote"
     packages { pf: "./platform/main.roc" }
-    imports [pf.Poll.{ Poll, Preference, Vote }]
+    imports [pf.Poll.{ Poll, PollError, Preference, Vote }]
     provides [main] to pf
 
-main : Poll -> List U32
+main : Poll -> Result (List U32) PollError
 main = \poll ->
-    when singleTransferableVote poll is
-        Err _ ->
-            # TODO: Provide error message to result
-            List.repeat 0 (Num.toU64 poll.seats)
-
-        Ok winners ->
-            winners
+    singleTransferableVote poll
 
 # Single Transferable Vote Algorithm
 
 CandidateIndex : U32
 
-singleTransferableVote : Poll -> Result (List CandidateIndex) Str
+singleTransferableVote : Poll -> Result (List CandidateIndex) PollError
 singleTransferableVote = \poll ->
     poll
     |> validate
@@ -29,7 +23,7 @@ singleTransferableVote = \poll ->
             |> runSTVAlgorithmHelper
             |> Ok
 
-validate : Poll -> Result {} Str
+validate : Poll -> Result {} PollError
 validate = \poll ->
     Ok poll
     |> Result.try checkSeats
@@ -39,22 +33,22 @@ validate = \poll ->
 
 checkSeats = \poll ->
     if poll.seats == 0 then
-        Err "Number of seats must not be zero"
+        Err ZeroSeats
     else if Num.toU64 poll.seats > List.len poll.tieRank then
-        Err "Number of seats must not be greater than number of candidates"
+        Err MoreSeatsThanCandidates
     else
         Ok poll
 
 checkTieRank = \poll ->
     if Set.fromList poll.tieRank |> Set.len != List.len poll.tieRank then
-        Err "Values of candidate weight must be unique"
+        Err IdenticalTieRanks
     else
         Ok poll
 
 checkVotes = \poll ->
     numOfCandidates = List.len poll.tieRank
     if !(poll.votes |> List.all \vote -> List.len vote == numOfCandidates) then
-        Err "Every vote must have exactly as many values as there candidates"
+        Err InvalidVoteLength
     else
         Ok poll
 
@@ -64,23 +58,23 @@ expect
 
 expect
     poll = { seats: 0, tieRank: [1, 2, 3], votes: [] }
-    validate poll == Err "Number of seats must not be zero"
+    validate poll == Err ZeroSeats
 
 expect
     poll = { seats: 4, tieRank: [1, 2, 3], votes: [] }
-    validate poll == Err "Number of seats must not be greater than number of candidates"
+    validate poll == Err MoreSeatsThanCandidates
 
 expect
     poll = { seats: 2, tieRank: [1, 2, 2], votes: [] }
-    validate poll == Err "Values of candidate weight must be unique"
+    validate poll == Err IdenticalTieRanks
 
 expect
     poll = { seats: 2, tieRank: [1, 2, 3], votes: [[1, 2, 3], [1, 2]] }
-    validate poll == Err "Every vote must have exactly as many values as there candidates"
+    validate poll == Err InvalidVoteLength
 
 expect
     poll = { seats: 2, tieRank: [1, 2, 3], votes: [[1, 2, 3], [1, 2, 3, 4]] }
-    validate poll == Err "Every vote must have exactly as many values as there candidates"
+    validate poll == Err InvalidVoteLength
 
 preprocessVotes : Poll -> Poll
 preprocessVotes = \poll ->
