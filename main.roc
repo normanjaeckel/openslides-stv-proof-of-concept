@@ -171,17 +171,22 @@ runSTVAlgorithmHelper = \pollData ->
 
 runOneRound : PollData -> PollData
 runOneRound = \pollData ->
-    # weightedFirstPreferences = {}
-    sumOfWeightedFirstPreferences = {}
-    quota = {}
+    weightedFirstPreferences = getWeightedFirstPreferences
+        pollData.remainingVotes
+        pollData.voteWeights
+    sumOfWeightedFirstPreferences = getSumOfWeightedFirstPreferences
+        weightedFirstPreferences
+        (List.len pollData.poll.tieRank)
+    quota = (List.sum sumOfWeightedFirstPreferences // (pollData.remainingSeats + 1)) + 1
+
     when getWinnerOrLooser pollData sumOfWeightedFirstPreferences quota is
         Winner w ->
             # surplus = {}
-            voteWeights = pollData.voteWeights # TODO
+            voteWeights = pollData.voteWeights # TODO use surplus
             remainingSeats = pollData.remainingSeats - 1
             electedCandidates = pollData.electedCandidates |> List.append w
             hopefulCandidates = pollData.hopefulCandidates |> List.dropIf \c -> c == w
-            remainingVotes = pollData.poll.votes # TODO
+            remainingVotes = pollData.poll.votes # TODO Besenkehrer
             { pollData &
                 hopefulCandidates,
                 electedCandidates,
@@ -193,14 +198,45 @@ runOneRound = \pollData ->
         Looser l ->
             eliminatedCandidates = pollData.eliminatedCandidates |> List.append l
             hopefulCandidates = pollData.hopefulCandidates |> List.dropIf \c -> c == l
-            remainingVotes = pollData.poll.votes # TODO
+            remainingVotes = pollData.poll.votes # TODO Besenkehrer
             { pollData &
                 hopefulCandidates,
                 eliminatedCandidates,
                 remainingVotes,
             }
 
-getWinnerOrLooser : PollData, {}, {} -> [Winner CandidateIndex, Looser CandidateIndex]
+getWeightedFirstPreferences : List Vote, List U32 -> List (List U32)
+getWeightedFirstPreferences = \votes, weights ->
+    List.map2
+        votes
+        weights
+        \vote, weight ->
+            numOfFirstPrefs = vote |> List.countIf (\rank -> rank == 1) |> Num.toU32
+            vote
+            |> List.map \rank ->
+                if rank == 1 then
+                    (weight // numOfFirstPrefs) |> Num.toU32
+                else
+                    0
+
+expect
+    got = getWeightedFirstPreferences [[1, 2, 3], [2, 1, 3], [3, 1, 1], [0, 0, 0], [1, 1, 1]] [10, 20, 30, 40, 50]
+    got == [[10, 0, 0], [0, 20, 0], [0, 15, 15], [0, 0, 0], [16, 16, 16]]
+
+getSumOfWeightedFirstPreferences : List (List U32), U64 -> List U32
+getSumOfWeightedFirstPreferences = \prefs, numOfCandidates ->
+    sumList = List.repeat 0 numOfCandidates
+    prefs
+    |> List.walk
+        sumList
+        \state, pref ->
+            List.map2 state pref \s, p -> s + p
+
+expect
+    got = getSumOfWeightedFirstPreferences [[10, 0, 0, 0], [0, 20, 0, 0], [0, 15, 15, 0], [0, 0, 0, 0], [16, 16, 16, 0]] 4
+    got == [26, 51, 31, 0]
+
+getWinnerOrLooser : PollData, List U32, U32 -> [Winner CandidateIndex, Looser CandidateIndex]
 
 # Test data
 
