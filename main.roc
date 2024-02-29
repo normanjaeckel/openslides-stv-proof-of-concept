@@ -1,6 +1,6 @@
 app "single-transferable-vote"
     packages { pf: "./platform/main.roc" }
-    imports [pf.Poll.{ Poll, PollError, Preference, Vote }]
+    imports [pf.Poll.{ NumOfSeats, Poll, PollError, Preference, Vote }]
     provides [main] to pf
 
 main : Poll -> Result (List U32) PollError
@@ -127,10 +127,12 @@ PollData : {
     hopefulCandidates : List CandidateIndex,
     electedCandidates : List CandidateIndex,
     eliminatedCandidates : List CandidateIndex,
-    remainingSeats : U32,
+    remainingSeats : NumOfSeats,
     remainingVotes : List Vote,
-    voteWeights : List U32,
+    voteWeights : List VoteWeight,
 }
+
+VoteWeight : U32
 
 toInitialPollData : Poll -> PollData
 toInitialPollData = \poll ->
@@ -179,14 +181,21 @@ runOneRound = \pollData ->
         (List.len pollData.poll.tieRank)
     quota = (List.sum sumOfWeightedFirstPreferences // (pollData.remainingSeats + 1)) + 1
 
-    when getWinnerOrLooser pollData sumOfWeightedFirstPreferences quota is
-        Winner w ->
-            # surplus = {}
-            voteWeights = pollData.voteWeights # TODO use surplus
+    when getWinnerOrLooser sumOfWeightedFirstPreferences quota pollData.poll.tieRank is
+        Winner winner winnerVoteValue ->
+            surplusNumerator = (winnerVoteValue - quota)
+            surplusDenominator = winnerVoteValue
+            voteWeights =
+                recomputeVoteWeights
+                    pollData.voteWeights
+                    weightedFirstPreferences
+                    winner
+                    surplusNumerator
+                    surplusDenominator
             remainingSeats = pollData.remainingSeats - 1
-            electedCandidates = pollData.electedCandidates |> List.append w
-            hopefulCandidates = pollData.hopefulCandidates |> List.dropIf \c -> c == w
-            remainingVotes = pollData.poll.votes # TODO Besenkehrer
+            electedCandidates = pollData.electedCandidates |> List.append winner
+            hopefulCandidates = pollData.hopefulCandidates |> List.dropIf \c -> c == winner
+            remainingVotes = pollData.remainingVotes |> shiftVotes winner
             { pollData &
                 hopefulCandidates,
                 electedCandidates,
@@ -195,17 +204,17 @@ runOneRound = \pollData ->
                 voteWeights,
             }
 
-        Looser l ->
-            eliminatedCandidates = pollData.eliminatedCandidates |> List.append l
-            hopefulCandidates = pollData.hopefulCandidates |> List.dropIf \c -> c == l
-            remainingVotes = pollData.poll.votes # TODO Besenkehrer
+        Looser looser ->
+            eliminatedCandidates = pollData.eliminatedCandidates |> List.append looser
+            hopefulCandidates = pollData.hopefulCandidates |> List.dropIf \c -> c == looser
+            remainingVotes = pollData.remainingVotes |> shiftVotes looser
             { pollData &
                 hopefulCandidates,
                 eliminatedCandidates,
                 remainingVotes,
             }
 
-getWeightedFirstPreferences : List Vote, List U32 -> List (List U32)
+getWeightedFirstPreferences : List Vote, List VoteWeight -> List (List U32)
 getWeightedFirstPreferences = \votes, weights ->
     List.map2
         votes
@@ -236,7 +245,107 @@ expect
     got = getSumOfWeightedFirstPreferences [[10, 0, 0, 0], [0, 20, 0, 0], [0, 15, 15, 0], [0, 0, 0, 0], [16, 16, 16, 0]] 4
     got == [26, 51, 31, 0]
 
-getWinnerOrLooser : PollData, List U32, U32 -> [Winner CandidateIndex, Looser CandidateIndex]
+getWinnerOrLooser : List U32, U32, List U32 -> [Winner CandidateIndex U32, Looser CandidateIndex]
+getWinnerOrLooser = \prefs, quota, tieRank ->
+    max = List.max prefs |> Result.withDefault 0
+    if max >= quota then
+        List.map2 prefs tieRank \a, b -> (a, b)
+        |> List.walkWithIndex
+            (Num.minU32, 0, 0)
+            \(previousValue, previousTieRank, previousIndex), (thisValue, thisTieRank), thisIndex ->
+                switch =
+                    if previousValue > thisValue then
+                        Previous
+                    else if previousValue < thisValue then
+                        This
+                    else if previousTieRank < thisTieRank then
+                        This
+                    else
+                        Previous
+
+                when switch is
+                    Previous ->
+                        (previousValue, previousTieRank, previousIndex)
+
+                    This ->
+                        (thisValue, thisTieRank, thisIndex)
+        |> \(_, _, idx) ->
+            Winner (Num.toU32 idx) max
+    else
+        List.map2 prefs tieRank \a, b -> (a, b)
+        |> List.walkWithIndex
+            (Num.maxU32, 0, 0)
+            \(previousValue, previousTieRank, previousIndex), (thisValue, thisTieRank), thisIndex ->
+                switch =
+                    if previousValue < thisValue then
+                        Previous
+                    else if previousValue > thisValue then
+                        This
+                    else if previousTieRank > thisTieRank then
+                        This
+                    else
+                        Previous
+
+                when switch is
+                    Previous ->
+                        (previousValue, previousTieRank, previousIndex)
+
+                    This ->
+                        (thisValue, thisTieRank, thisIndex)
+        |> \(_, _, idx) ->
+            Looser (Num.toU32 idx)
+
+expect
+    got = getWinnerOrLooser [20, 10, 10, 20, 20] 21 [3, 2, 1, 5, 4]
+    got == Looser 2
+
+expect
+    got = getWinnerOrLooser [20, 10, 10, 20, 20] 20 [3, 2, 1, 5, 4]
+    got == Winner 3 20
+
+expect
+    got = getWinnerOrLooser [20, 10, 10, 20, 20] 10 [3, 2, 1, 5, 4]
+    got == Winner 3 20
+
+recomputeVoteWeights : List VoteWeight, List (List U32), CandidateIndex, U32, U32 -> List VoteWeight
+recomputeVoteWeights = \voteWeights, weightedFirstPreferences, candidate, surplusNumerator, surplusDenominator ->
+    List.map2
+        voteWeights
+        weightedFirstPreferences
+        \voteWeight, pref ->
+            valueForCandidate = pref |> List.get (Num.toU64 candidate) |> Result.withDefault 0
+            voteWeight - valueForCandidate + (valueForCandidate * surplusNumerator // surplusDenominator)
+
+expect
+    got = recomputeVoteWeights [30, 20, 10] [[0, 0, 30, 0, 0], [10, 0, 10, 0, 0], [0, 0, 0, 5, 5]] 2 19 40
+    got == [14, 14, 10]
+
+shiftVotes : List Vote, CandidateIndex -> List Vote
+shiftVotes = \votes, candidate ->
+    votes
+    |> List.map
+        \vote ->
+            valueForCandidate = vote |> List.get (Num.toU64 candidate) |> Result.withDefault 0
+            if valueForCandidate == 0 then
+                vote
+            else
+                vote
+                |> List.mapWithIndex
+                    \val, idx ->
+                        if Num.toU32 idx == candidate then
+                            0
+                        else if val > valueForCandidate then
+                            val - 1
+                        else
+                            val
+
+expect
+    got = shiftVotes [[1, 2, 3, 4, 5], [0, 0, 1, 2, 3], [3, 2, 0, 0, 1]] 2
+    got == [[1, 2, 0, 3, 4], [0, 0, 0, 1, 2], [3, 2, 0, 0, 1]]
+
+expect
+    got = shiftVotes [[1, 2, 3, 3, 5], [0, 0, 1, 1, 3], [3, 1, 0, 0, 1]] 2
+    got == [[1, 2, 0, 3, 4], [0, 0, 0, 1, 2], [3, 1, 0, 0, 1]]
 
 # Test data
 

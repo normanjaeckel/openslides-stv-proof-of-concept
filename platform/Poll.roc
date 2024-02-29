@@ -1,5 +1,6 @@
 interface Poll
     exposes [
+        NumOfSeats,
         Poll,
         PollError,
         Preference,
@@ -8,10 +9,12 @@ interface Poll
     imports []
 
 Poll : {
-    seats : U32,
+    seats : NumOfSeats,
     votes : List Vote,
     tieRank : List U32,
 }
+
+NumOfSeats : U32
 
 Vote : List Preference
 
