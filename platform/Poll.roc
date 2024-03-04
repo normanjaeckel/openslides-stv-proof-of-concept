@@ -1,5 +1,6 @@
 interface Poll
     exposes [
+        CandidateIndex,
         NumOfSeats,
         Poll,
         PollError,
@@ -11,18 +12,22 @@ interface Poll
 Poll : {
     seats : NumOfSeats,
     votes : List Vote,
-    tieRank : List U32,
+    tieRank : List U64,
 }
 
-NumOfSeats : U32
+NumOfSeats : U64
 
 Vote : List Preference
 
-Preference : U32
+Preference : U64
+
+CandidateIndex : U64
 
 PollError : [
     ZeroSeats,
     MoreSeatsThanCandidates,
+    EqualSeatsThanCandidates,
     IdenticalTieRanks,
     InvalidVoteLength,
+    EmptyVotes,
 ]
