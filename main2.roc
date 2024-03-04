@@ -1,9 +1,9 @@
 app "single-transferable-vote"
     packages { pf: "./platform/main.roc" }
-    imports [pf.Poll.{ NumOfSeats, Poll, PollError, Preference, Vote }]
+    imports [pf.Poll.{ CandidateIndex, NumOfSeats, Poll, PollError, Preference, Vote }]
     provides [main] to pf
 
-main : Poll -> Result (List U32) PollError
+main : Poll -> Result (List CandidateIndex) PollError
 main = \poll ->
     poll
     |> validate
@@ -20,7 +20,7 @@ validate = \poll ->
 checkSeats = \poll ->
     if poll.seats == 0 then
         Err ZeroSeats
-    else if Num.toU64 poll.seats > List.len poll.tieRank then
+    else if poll.seats > List.len poll.tieRank then
         Err MoreSeatsThanCandidates
     else
         Ok poll
@@ -45,8 +45,7 @@ PollData : {
     voteWeights : List VoteWeight,
 }
 
-VoteWeight : U32
-CandidateIndex : U32
+VoteWeight : U64
 
 initialPollData : Poll -> PollData
 initialPollData = \poll -> {
@@ -56,9 +55,9 @@ initialPollData = \poll -> {
     voteWeights: List.repeat 1_000_000 (List.len poll.votes),
 }
 
-remainingSeats : PollData -> U32
+remainingSeats : PollData -> U64
 remainingSeats = \pd ->
-    pd.poll.seats - (List.len pd.electedCandidates |> Num.toU32)
+    pd.poll.seats - List.len pd.electedCandidates
 
 ignoreIndex : PollData -> List CandidateIndex
 ignoreIndex = \pd ->
@@ -77,7 +76,7 @@ singleTransferableVoteHelper = \pd ->
 
 round : PollData -> [Done (List CandidateIndex), Continue PollData]
 round = \pd ->
-    if List.len pd.electedCandidates |> Num.toU32 == pd.poll.seats then
+    if List.len pd.electedCandidates == pd.poll.seats then
         Done pd.electedCandidates
     else
         countedVotes = countVotes pd
@@ -179,15 +178,14 @@ expect
     got
     == Done [2]
 
-getVotedCandidate : PollData, List U32 -> (CandidateIndex, U32, CandidateIndex)
+getVotedCandidate : PollData, List U64 -> (CandidateIndex, U64, CandidateIndex)
 getVotedCandidate = \pd, counted ->
     ignore = ignoreIndex pd
     { highestValue, highestIndex, lowestIndex } =
         List.walkWithIndex
             counted
-            { highestValue: 0, lowestValue: Num.maxU32, highestIndex: 0, lowestIndex: 0 }
-            \state, voteCount, idx ->
-                index = idx |> Num.toU32
+            { highestValue: 0, lowestValue: Num.maxU64, highestIndex: 0, lowestIndex: 0 }
+            \state, voteCount, index ->
                 if List.contains ignore index then
                     state
                 else
@@ -195,8 +193,8 @@ getVotedCandidate = \pd, counted ->
                         if voteCount > state.highestValue then
                             { state & highestValue: voteCount, highestIndex: index }
                         else if voteCount == state.highestValue then
-                            x = List.get pd.poll.tieRank (index |> Num.toU64) |> Result.withDefault 0
-                            y = List.get pd.poll.tieRank (state.highestIndex |> Num.toU64) |> Result.withDefault 0
+                            x = List.get pd.poll.tieRank index |> Result.withDefault 0
+                            y = List.get pd.poll.tieRank state.highestIndex |> Result.withDefault 0
 
                             if x > y then
                                 { state & highestValue: voteCount, highestIndex: index }
@@ -208,8 +206,8 @@ getVotedCandidate = \pd, counted ->
                     if voteCount < state2.lowestValue then
                         { state2 & lowestValue: voteCount, lowestIndex: index }
                     else if voteCount == state2.lowestValue then
-                        x = List.get pd.poll.tieRank (index |> Num.toU64) |> Result.withDefault 0
-                        y = List.get pd.poll.tieRank (state2.lowestIndex |> Num.toU64) |> Result.withDefault 0
+                        x = List.get pd.poll.tieRank index |> Result.withDefault 0
+                        y = List.get pd.poll.tieRank state2.lowestIndex |> Result.withDefault 0
 
                         if x < y then
                             { state2 & lowestValue: voteCount, lowestIndex: index }
@@ -226,7 +224,7 @@ getVotedCandidate = \pd, counted ->
 ## If more then one candiate are voted highest, all of them are counted with a reduced voteWeight.
 ##
 ## Candiates that are elected or eliminated are ignored.
-countVotes : PollData -> List U32
+countVotes : PollData -> List U64
 countVotes = \pd ->
     ignore = ignoreIndex pd
 
@@ -240,11 +238,11 @@ countVotes = \pd ->
             else
                 weight =
                     when List.get pd.voteWeights index is
-                        Ok v -> v // (List.len candidates |> Num.toU32)
+                        Ok v -> v // List.len candidates
                         Err OutOfBounds -> crash "vote has no weight. This should be checked in validate"
 
                 List.walk candidates state \state2, candidateIndex ->
-                    List.update state2 (candidateIndex |> Num.toU64) \v -> v + weight
+                    List.update state2 candidateIndex \v -> v + weight
 
 expect
     pd = initialPollData examplePoll
@@ -262,7 +260,7 @@ expect
     got = countVotes pd
     got == [333_333, 333_333, 333_333]
 
-updateVoteWeights : PollData, CandidateIndex, U32, U32 -> List U32
+updateVoteWeights : PollData, CandidateIndex, U64, U64 -> List U64
 updateVoteWeights = \pd, candidateIndex, numberOfVotes, quota ->
     surplus = numberOfVotes - quota
     numOfPrefs = whoHasVoted pd candidateIndex
@@ -277,7 +275,7 @@ updateVoteWeights = \pd, candidateIndex, numberOfVotes, quota ->
                 x = (voteWeight // numOfPref)
                 voteWeight - x + (x * surplus // numberOfVotes)
 
-whoHasVoted : PollData, CandidateIndex -> List U32
+whoHasVoted : PollData, CandidateIndex -> List U64
 whoHasVoted = \pd, winner ->
     ignore = ignoreIndex pd
 
@@ -286,7 +284,7 @@ whoHasVoted = \pd, winner ->
         \vote ->
             candidates = maxIndexes vote ignore
             if List.contains candidates winner then
-                List.len candidates |> Num.toU32
+                List.len candidates
             else
                 0
 
@@ -368,24 +366,24 @@ expect
 ## maxWighIgnore works like List.max but ignores elements at specific indexes.
 ##
 ## Returns 0 for an empty list of a list, that is fully ignored.
-maxWithIgnore : List (Num a), List U32 -> Num a
+maxWithIgnore : List (Num a), List U64 -> Num a
 maxWithIgnore = \list, ignore ->
     List.walkWithIndex
         list
         0
         \state, elem, index ->
-            if List.contains ignore (index |> Num.toU32) then
+            if List.contains ignore index then
                 state
             else if elem > state then
                 elem
             else
                 state
 
-findAllIndex : List a, a -> List U32 where a implements Eq
+findAllIndex : List a, a -> List U64 where a implements Eq
 findAllIndex = \list, elem ->
     findAllIndexHelper list elem 0 []
 
-findAllIndexHelper : List a, a, U32, List U32 -> List U32 where a implements Eq
+findAllIndexHelper : List a, a, U64, List U64 -> List U64 where a implements Eq
 findAllIndexHelper = \list, elem, index, result ->
     when list is
         [] -> result
