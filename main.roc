@@ -1,6 +1,12 @@
 app "single-transferable-vote"
-    packages { pf: "./platform/main.roc" }
-    imports [pf.Poll.{ CandidateIndex, NumOfSeats, Poll, PollError, Preference, Vote }]
+    packages {
+        pf: "./platform/main.roc",
+        tests: "./tests/main.roc",
+    }
+    imports [
+        pf.Poll.{ CandidateIndex, NumOfSeats, Poll, PollError, Preference, Vote },
+        tests.Suite,
+    ]
     provides [main] to pf
 
 main : Poll -> Result (List CandidateIndex) PollError
@@ -148,7 +154,7 @@ runOneRound = \pollData ->
     else
         quota = (List.sum countedVotes // (pollData.remainingSeats + 1)) + 1
 
-        when getWinnerOrLooser countedVotes quota pollData.poll.tieRank is
+        when getWinnerOrLooser pollData.hopefulCandidates countedVotes quota pollData.poll.tieRank is
             Winner winner winnerVoteValue ->
                 electedCandidates = pollData.electedCandidates |> List.append winner
                 remainingSeats = pollData.remainingSeats - 1
@@ -223,8 +229,8 @@ expect
     got = countVotes [0, 2, 1, 0] [[3, 2, 1, 0], [2, 3, 1, 0], [1, 5, 5, 0], [0, 0, 0, 0], [1, 1, 1, 0]] [10, 20, 30, 40, 50] 4
     got == ([26, 51, 31, 0], [[0], [1], [1, 2], [], [0, 1, 2]])
 
-getWinnerOrLooser : List VoteWeight, U64, List U64 -> [Winner CandidateIndex VoteWeight, Looser CandidateIndex]
-getWinnerOrLooser = \countedVotes, quota, tieRank ->
+getWinnerOrLooser : List CandidateIndex, List VoteWeight, U64, List U64 -> [Winner CandidateIndex VoteWeight, Looser CandidateIndex]
+getWinnerOrLooser = \hopefulCandidates, countedVotes, quota, tieRank ->
     max = List.max countedVotes |> Result.withDefault 0
     if max >= quota then
         List.map2 countedVotes tieRank \a, b -> (a, b)
@@ -255,7 +261,9 @@ getWinnerOrLooser = \countedVotes, quota, tieRank ->
             (Num.maxU64, 0, 0)
             \(previousValue, previousTieRank, previousIndex), (thisValue, thisTieRank), thisIndex ->
                 switch =
-                    if previousValue < thisValue then
+                    if !(hopefulCandidates |> List.contains thisIndex) then
+                        Previous
+                    else if previousValue < thisValue then
                         Previous
                     else if previousValue > thisValue then
                         This
@@ -274,28 +282,31 @@ getWinnerOrLooser = \countedVotes, quota, tieRank ->
             Looser idx
 
 expect
-    got = getWinnerOrLooser [20, 10, 10, 20, 20] 21 [3, 2, 1, 5, 4]
+    got = getWinnerOrLooser [0, 1, 2, 3, 4] [20, 10, 10, 20, 20] 21 [3, 2, 1, 5, 4]
     got == Looser 2
 
 expect
-    got = getWinnerOrLooser [20, 10, 10, 20, 20] 20 [3, 2, 1, 5, 4]
+    got = getWinnerOrLooser [0, 1, 2, 3, 4] [20, 10, 10, 20, 20] 20 [3, 2, 1, 5, 4]
     got == Winner 3 20
 
 expect
-    got = getWinnerOrLooser [20, 10, 10, 20, 20] 10 [3, 2, 1, 5, 4]
+    got = getWinnerOrLooser [0, 1, 2, 3, 4] [20, 10, 10, 20, 20] 10 [3, 2, 1, 5, 4]
     got == Winner 3 20
 
-recomputeVoteWeights : List VoteWeight, List (List U64), CandidateIndex, U64, U64 -> List VoteWeight
-recomputeVoteWeights = \voteWeights, weightedFirstPreferences, candidate, surplusNumerator, surplusDenominator ->
+recomputeVoteWeights : List VoteWeight, List (List CandidateIndex), CandidateIndex, U64, U64 -> List VoteWeight
+recomputeVoteWeights = \voteWeights, voteList, candidate, surplusNumerator, surplusDenominator ->
     List.map2
         voteWeights
-        weightedFirstPreferences
-        \voteWeight, pref ->
-            valueForCandidate = pref |> List.get candidate |> Result.withDefault 0
-            voteWeight - valueForCandidate + (valueForCandidate * surplusNumerator // surplusDenominator)
+        voteList
+        \voteWeight, indexes ->
+            if indexes |> List.contains candidate then
+                valueForCandidate = voteWeight // List.len indexes
+                voteWeight - valueForCandidate + (valueForCandidate * surplusNumerator // surplusDenominator)
+            else
+                voteWeight
 
 expect
-    got = recomputeVoteWeights [30, 20, 10] [[0, 0, 30, 0, 0], [10, 0, 10, 0, 0], [0, 0, 0, 5, 5]] 2 19 40
+    got = recomputeVoteWeights [30, 20, 10] [[2], [0, 2], [3, 4]] 2 19 40
     got == [14, 14, 10]
 
 # Test data
@@ -322,6 +333,12 @@ expect
     got == Ok [8, 7, 6]
 
 expect
-    poll = { seats: 2, votes: [[1, 0, 0], [0, 0, 0], [0, 0, 0]], tieRank: [1, 2, 3] }
-    got = main poll
-    got == Ok [0]
+    Suite.suite
+    |> List.map
+        \(name, poll, expected) ->
+            got = main poll
+            expect !(Str.isEmpty name) && got == expected
+            0
+    |> List.max
+    |> Result.withDefault 0
+    |> \v -> v == 0

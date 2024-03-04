@@ -21,18 +21,21 @@ tasks:
   format:
     desc: Formats roc files
     cmds:
-      - roc format main.roc
+      - roc format main.roc tests/
     sources:
       - main.roc
+      - tests/*.roc
 
   test:
     desc: Runs checks and tests
     cmds:
-      - roc format --check main.roc
+      - roc format --check main.roc tests/
       - roc check
       - roc test
     sources:
       - main.roc
+      - tests/*.roc
+
 
   get-roc:
     desc: Downloads the latest nightly build of roc and unzips it
