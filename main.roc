@@ -337,7 +337,7 @@ expect
     |> List.map
         \(name, poll, expected) ->
             got = main poll
-            expect !(Str.isEmpty name) && got == expected
+            expect name == name && got == expected
             0
     |> List.max
     |> Result.withDefault 0
