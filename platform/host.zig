@@ -17,6 +17,13 @@ const Poll = extern struct {
 };
 
 extern fn roc__mainForHost_1_exposed_generic(*RocList, *Poll) void;
+extern fn debug_string(str_bytes: ?[*]u8, str_len: usize) void;
+
+fn debug(comptime fmt: []const u8, args: anytype) void {
+    const line = std.fmt.allocPrint(allocator, fmt, args) catch undefined;
+    defer allocator.free(line);
+    debug_string(line.ptr, line.len);
+}
 
 // single_transferable_votes calculates the result for a list of votes.
 //
@@ -74,7 +81,9 @@ export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data
     };
 
     var result: RocList = undefined;
+    allocations = .{ .memory = 0, .count = 0 };
     roc__mainForHost_1_exposed_generic(&result, &poll);
+    debug("allocations: {} {}", .{ allocations.memory, allocations.count });
     return result.getAllocationPtr();
 }
 
@@ -97,7 +106,11 @@ extern fn free(c_ptr: [*]align(Align) u8) callconv(.C) void;
 extern fn memcpy(dst: [*]u8, src: [*]u8, size: usize) callconv(.C) void;
 extern fn memset(dst: [*]u8, value: i32, size: usize) callconv(.C) void;
 
+var allocations: struct { memory: usize, count: usize } = .{ .memory = 0, .count = 0 };
+
 export fn roc_alloc(size: usize, alignment: u32) callconv(.C) ?*anyopaque {
+    allocations.memory += size;
+    allocations.count += 1;
     _ = alignment;
     return malloc(size);
 }
