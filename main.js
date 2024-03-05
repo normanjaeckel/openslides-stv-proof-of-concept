@@ -46,12 +46,13 @@ async function load_wasm(wasm_file) {
       // Call the roc code
       const result_pointer = single_transferable_vote(seats, candidates, votes, ptr);
 
-      const result_slice = new Uint32Array(memory.buffer, result_pointer, seats + 1);
+      const result_slice = new Uint32Array(memory.buffer, result_pointer, seats + 2);
       if (result_slice[0] != 0) {
         throw "Error: Code " + result_slice[0]
       }
+      let num_of_winners = result_slice[1];
       let result = [];
-      for (let i = 1; i <= seats; i++) {
+      for (let i = 2; i < num_of_winners + 2; i++) {
         result.push(result_slice[i]);
       }
       return result;

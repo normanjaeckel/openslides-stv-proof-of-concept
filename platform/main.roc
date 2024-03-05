@@ -12,6 +12,7 @@ mainForHost = \poll32 ->
         Ok winners ->
             winners
             |> List.map Num.toU32
+            |> List.prepend (List.len winners |> Num.toU32)
             |> List.prepend 0
 
         Err err ->

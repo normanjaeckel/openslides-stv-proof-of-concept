@@ -12,41 +12,96 @@
 <body>
 
   <h1>Single Transferable Vote</h1>
-  <button id="calcResult">Calculate vote result</button>
+  <button id="calcResult">Calculate vote results</button>
 
-  <h2>Poll data</h2>
-  <dl>
-    <dt>Number of seats:</dt>
-    <dd>
-      <pre id="seats"></pre>
-    </dd>
-    <dt>Votes:</dt>
-    <dd>
-      <pre id="votes"></pre>
-    </dd>
-    <dt>Tie priority list:</dt>
-    <dd>
-      <pre id="tieRank"></pre>
-    </dd>
-  </dl>
+  <div id="poll1">
+    <h2>Poll 1</h2>
+    <dl>
+      <dt>Number of seats:</dt>
+      <dd>
+        <pre class="seats"></pre>
+      </dd>
+      <dt>Votes:</dt>
+      <dd>
+        <pre class="votes"></pre>
+      </dd>
+      <dt>Tie priority list:</dt>
+      <dd>
+        <pre class="tieRank"></pre>
+      </dd>
+      <dt>Result:</dt>
+      <dd>
+        <pre class="result">&nbsp;</pre>
+      </dd>
+    </dl>
+  </div>
 
-  <h2>Result</h2>
-  <pre id="result"></pre>
+  <div id="poll2">
+    <h2>Poll 2</h2>
+    <dl>
+      <dt>Number of seats:</dt>
+      <dd>
+        <pre class="seats"></pre>
+      </dd>
+      <dt>Votes:</dt>
+      <dd>
+        <pre class="votes"></pre>
+      </dd>
+      <dt>Tie priority list:</dt>
+      <dd>
+        <pre class="tieRank"></pre>
+      </dd>
+      <dt>Result:</dt>
+      <dd>
+        <pre class="result">&nbsp;</pre>
+      </dd>
+    </dl>
+  </div>
 
   <script src="./main.js"></script>
   <script>
-    const seats = 2;
-    const votes = [[1, 2, 3], [2, 1, 3], [3, 1, 2]];
-    const tieRank = [1, 2, 3];
+    const seats1 = 2;
+    const votes1 = [
+      [4, 1, 3, 2],
+      [2, 4, 1, 3],
+      [2, 4, 1, 3],
+      [1, 2, 4, 3],
+      [1, 4, 0, 3],
+      [3, 2, 4, 1],
+      [3, 4, 1, 2],
+      [3, 4, 1, 2],
+      [4, 3, 2, 0],
+      [2, 3, 4, 1],
+    ];
+    const tieRank1 = [1, 2, 3, 4];
+    document.querySelector("#poll1 .seats").textContent = JSON.stringify(seats1);
+    document.querySelector("#poll1 .votes").textContent = JSON.stringify(votes1).split(",").join(", ");
+    document.querySelector("#poll1 .tieRank").textContent = JSON.stringify(tieRank1).split(",").join(", ");
 
-    document.getElementById("seats").textContent = JSON.stringify(seats);
-    document.getElementById("votes").textContent = JSON.stringify(votes);
-    document.getElementById("tieRank").textContent = JSON.stringify(tieRank);
+    const seats2 = 2;
+    const votes2 = [
+      [0, 0, 0, 0],
+      [0, 4, 0, 0],
+      [0, 4, 0, 0],
+      [0, 2, 0, 0],
+      [0, 4, 0, 0],
+      [0, 0, 0, 0],
+      [0, 4, 0, 0],
+      [0, 4, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ];
+    const tieRank2 = [1, 2, 3, 4];
+    document.querySelector("#poll2 .seats").textContent = JSON.stringify(seats2);
+    document.querySelector("#poll2 .votes").textContent = JSON.stringify(votes2).split(",").join(", ");
+    document.querySelector("#poll2 .tieRank").textContent = JSON.stringify(tieRank2).split(",").join(", ");
 
     load_wasm("./main.wasm").then(function (singleTransferableVote) {
       document.getElementById("calcResult").onclick = function () {
-        const result = singleTransferableVote(seats, votes, tieRank);
-        document.getElementById("result").textContent = JSON.stringify(result);
+        const result1 = singleTransferableVote(seats1, votes1, tieRank1);
+        document.querySelector("#poll1 .result").textContent = JSON.stringify(result1);
+        const result2 = singleTransferableVote(seats2, votes2, tieRank2);
+        document.querySelector("#poll2 .result").textContent = JSON.stringify(result2);
       };
     });
   </script>
