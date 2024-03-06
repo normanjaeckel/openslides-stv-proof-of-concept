@@ -291,20 +291,16 @@ expect
 
 countVotes : List U64, List U64, SortedVote -> List U64
 countVotes = \tieRank, voteWeights, votes ->
-    List.walkWithIndex
-        votes
+    List.map2 votes voteWeights (\v, w -> (v, w))
+    |> List.walk
         (List.repeat 0 (List.len tieRank))
-        \state, candidateIdxList, index ->
+        \state, (candidateIdxList, weight) ->
             if List.len candidateIdxList == 0 then
                 state
             else
-                weight =
-                    when List.get voteWeights index is
-                        Ok v -> v // List.len candidateIdxList
-                        Err OutOfBounds -> crash "candidate index has no weight. This should be checked in validate"
-
+                w = weight // List.len candidateIdxList
                 List.walk candidateIdxList state \state2, candidateIndex ->
-                    List.update state2 candidateIndex \v -> v + weight
+                    List.update state2 candidateIndex \v -> v + w
 
 expect
     ignore = []
