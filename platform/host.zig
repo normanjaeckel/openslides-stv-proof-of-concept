@@ -25,23 +25,6 @@ fn debug(comptime fmt: []const u8, args: anytype) void {
     debug_string(line.ptr, line.len);
 }
 
-// single_transferable_votes calculates the result for a list of votes.
-//
-// The first argument `seats` is the amount of positions, that should be voted.
-// The second argument `candidates`is the amount of names, that are on each
-// ballot. The third argument `votes` is the amount of votes. The forth arguent
-// `data_pointer` is the memory-adress for the actual votes.
-//
-// The memory that `data_pointer` is a list of  `candidates` * (`votes` + 1) u32
-// values. Each group of numbers (amount of `candidates`) is one ballot. The
-// last group is like a ballot. It has to contain unique numbers and is used, if
-// there is a tie.
-//
-// For example, if there are two candidates and trey votes, the memory could
-// look like this: `(1,2),(2,1),(1,1),(1,2)` (The paranthesize are only for
-// better visibility). In this example, the first vote prefers 1 over 2, the
-// second 2 over 1, the thrid has no preference. If there is a tie, 1 wins over
-// 2.
 export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data_pointer: [*]u32) ?[*]u8 {
     const memory_size: usize = candidates * (votes + 1);
 

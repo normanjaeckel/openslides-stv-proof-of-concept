@@ -16,15 +16,18 @@ main = \poll ->
     |> Result.map singleTransferableVote
 
 expect
-    Suite.suite
-    |> List.map
-        \(name, poll, expected) ->
-            got = main poll
-            expect !(Str.isEmpty name) && got == expected
-            0
-    |> List.max
-    |> Result.withDefault 0
-    |> \v -> v == 0
+    failedTests =
+        List.walk
+            Suite.suite
+            []
+            \state, (name, poll, expected) ->
+                got = main poll
+                if got == expected then
+                    state
+                else
+                    List.append state { aname: name, got: got, expected: expected }
+
+    List.len failedTests == 0
 
 # validate and all sub-functions are mainly copied from Norman.
 validate : Poll -> Result Poll PollError
