@@ -11,10 +11,9 @@ app "single-transferable-vote"
 
 main : Poll -> Result (List CandidateIndex) PollError
 main = \poll ->
-    poll
-    |> validate
-    |> Result.try
-        \_ ->
+    when validate poll is
+        Err e -> Err e
+        Ok _ ->
             poll
             |> toInitialPollData
             |> runSTVAlgorithmHelper
@@ -333,12 +332,14 @@ expect
     got == Ok [8, 7, 6]
 
 expect
-    Suite.suite
-    |> List.map
-        \(name, poll, expected) ->
-            got = main poll
-            expect name == name && got == expected
-            0
-    |> List.max
-    |> Result.withDefault 0
-    |> \v -> v == 0
+    failedTests =
+        Suite.suite
+        |> List.walk
+            []
+            \state, (name, poll, expected) ->
+                got = main poll
+                if got == expected then
+                    state
+                else
+                    state |> List.append name
+    List.len failedTests == 0
