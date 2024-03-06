@@ -1,8 +1,7 @@
 interface Suite
     exposes [suite]
-    imports [pf.Poll.{ CandidateIndex, Poll, PollError }]
+    imports []
 
-suite : List (Str, Poll, Result (List CandidateIndex) PollError)
 suite = [
     test1,
     test2,
@@ -10,6 +9,12 @@ suite = [
     test4,
     test5,
     test6,
+    errorTest1,
+    errorTest2,
+    errorTest3,
+    errorTest4,
+    errorTest5,
+    errorTest6,
 ]
 
 test1 =
@@ -112,4 +117,46 @@ test6 =
             tieRank: [1, 2, 3, 4],
         },
         Ok [1, 3],
+    )
+
+errorTest1 =
+    (
+        "test ZeroSeats error",
+        { seats: 0, votes: [[1, 2], [1, 2], [1, 2]], tieRank: [1, 2] },
+        Err ZeroSeats,
+    )
+
+errorTest2 =
+    (
+        "test MoreSeatsThanCandidates error",
+        { seats: 3, votes: [[1, 2], [1, 2], [1, 2]], tieRank: [1, 2] },
+        Err MoreSeatsThanCandidates,
+    )
+
+errorTest3 =
+    (
+        "test EqualSeatsThanCandidates error",
+        { seats: 2, votes: [[1, 2], [1, 2], [1, 2]], tieRank: [1, 2] },
+        Err EqualSeatsThanCandidates,
+    )
+
+errorTest4 =
+    (
+        "test IdenticalTieRanks error",
+        { seats: 1, votes: [[1, 2], [1, 2], [1, 2]], tieRank: [1, 1] },
+        Err IdenticalTieRanks,
+    )
+
+errorTest5 =
+    (
+        "test InvalidVoteLength error",
+        { seats: 1, votes: [[1, 2], [1, 2], [1, 2, 3]], tieRank: [1, 2] },
+        Err InvalidVoteLength,
+    )
+
+errorTest6 =
+    (
+        "test EmptyVotes error",
+        { seats: 1, votes: [], tieRank: [1, 2] },
+        Err EmptyVotes,
     )
