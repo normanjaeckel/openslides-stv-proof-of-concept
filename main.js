@@ -1,4 +1,6 @@
 async function load_wasm(wasm_file) {
+  let wasm;
+
   const importObj = {
     // TODO: Why do I have to define this?
     // Can probably be removed when this is fixed: https://github.com/roc-lang/roc/issues/5585
@@ -22,10 +24,16 @@ async function load_wasm(wasm_file) {
       roc_panic: (_pointer, _tag_id) => {
         throw "Roc panicked!";
       },
+      debug_string: (str_bytes, str_len) => {
+        const memory_bytes = new Uint8Array(wasm.instance.exports.memory.buffer);
+        const utf8_bytes = memory_bytes.subarray(str_bytes, str_bytes + str_len);
+        const js_string = new TextDecoder().decode(utf8_bytes);
+        console.log(js_string);
+      },
     },
   };
 
-  const wasm = await WebAssembly.instantiateStreaming(fetch(wasm_file), importObj);
+  wasm = await WebAssembly.instantiateStreaming(fetch(wasm_file), importObj);
   const memory = wasm.instance.exports.memory;
   const single_transferable_vote = wasm.instance.exports.single_transferable_vote;
   const allocator = wasm.instance.exports.allocUint32;

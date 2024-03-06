@@ -17,24 +17,14 @@ const Poll = extern struct {
 };
 
 extern fn roc__mainForHost_1_exposed_generic(*RocList, *Poll) void;
+extern fn debug_string(str_bytes: ?[*]u8, str_len: usize) void;
 
-// single_transferable_votes calculates the result for a list of votes.
-//
-// The first argument `seats` is the amount of positions, that should be voted.
-// The second argument `candidates`is the amount of names, that are on each
-// ballot. The third argument `votes` is the amount of votes. The forth arguent
-// `data_pointer` is the memory-adress for the actual votes.
-//
-// The memory that `data_pointer` is a list of  `candidates` * (`votes` + 1) u32
-// values. Each group of numbers (amount of `candidates`) is one ballot. The
-// last group is like a ballot. It has to contain unique numbers and is used, if
-// there is a tie.
-//
-// For example, if there are two candidates and trey votes, the memory could
-// look like this: `(1,2),(2,1),(1,1),(1,2)` (The paranthesize are only for
-// better visibility). In this example, the first vote prefers 1 over 2, the
-// second 2 over 1, the thrid has no preference. If there is a tie, 1 wins over
-// 2.
+fn debug(comptime fmt: []const u8, args: anytype) void {
+    const line = std.fmt.allocPrint(allocator, fmt, args) catch undefined;
+    defer allocator.free(line);
+    debug_string(line.ptr, line.len);
+}
+
 export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data_pointer: [*]u32) ?[*]u8 {
     const memory_size: usize = candidates * (votes + 1);
 
@@ -74,7 +64,9 @@ export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data
     };
 
     var result: RocList = undefined;
+    allocations = .{ .memory = 0, .count = 0 };
     roc__mainForHost_1_exposed_generic(&result, &poll);
+    debug("allocations: {} {}", .{ allocations.memory, allocations.count });
     return result.getAllocationPtr();
 }
 
@@ -97,7 +89,11 @@ extern fn free(c_ptr: [*]align(Align) u8) callconv(.C) void;
 extern fn memcpy(dst: [*]u8, src: [*]u8, size: usize) callconv(.C) void;
 extern fn memset(dst: [*]u8, value: i32, size: usize) callconv(.C) void;
 
+var allocations: struct { memory: usize, count: usize } = .{ .memory = 0, .count = 0 };
+
 export fn roc_alloc(size: usize, alignment: u32) callconv(.C) ?*anyopaque {
+    allocations.memory += size;
+    allocations.count += 1;
     _ = alignment;
     return malloc(size);
 }

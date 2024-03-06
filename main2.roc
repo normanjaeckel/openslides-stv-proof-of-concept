@@ -1,6 +1,12 @@
 app "single-transferable-vote"
-    packages { pf: "./platform/main.roc" }
-    imports [pf.Poll.{ CandidateIndex, NumOfSeats, Poll, PollError, Preference, Vote }]
+    packages {
+        pf: "./platform/main.roc",
+        tests: "./tests/main.roc",
+    }
+    imports [
+        pf.Poll.{ CandidateIndex, NumOfSeats, Poll, PollError, Preference, Vote },
+        tests.Suite,
+    ]
     provides [main] to pf
 
 main : Poll -> Result (List CandidateIndex) PollError
@@ -8,6 +14,20 @@ main = \poll ->
     poll
     |> validate
     |> Result.map singleTransferableVote
+
+expect
+    failedTests =
+        List.walk
+            Suite.suite
+            []
+            \state, (name, poll, expected) ->
+                got = main poll
+                if got == expected then
+                    state
+                else
+                    List.append state { aname: name, got: got, expected: expected }
+
+    List.len failedTests == 0
 
 # validate and all sub-functions are mainly copied from Norman.
 validate : Poll -> Result Poll PollError
