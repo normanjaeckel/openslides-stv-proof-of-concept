@@ -1,10 +1,10 @@
 interface Poll
     exposes [
-        CandidateIndex,
+        CandidateGroup,
+        CandidateID,
         NumOfSeats,
         Poll,
         PollError,
-        Preference,
         Vote,
     ]
     imports []
@@ -12,16 +12,15 @@ interface Poll
 Poll : {
     seats : NumOfSeats,
     votes : List Vote,
-    tieRank : List U64,
+    tieRank : List CandidateID,
 }
+
+CandidateID : U64
 
 NumOfSeats : U64
 
-Vote : List Preference
-
-Preference : U64
-
-CandidateIndex : U64
+Vote : List CandidateGroup
+CandidateGroup : List CandidateID
 
 PollError : [
     ZeroSeats,
