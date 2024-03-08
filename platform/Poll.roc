@@ -5,6 +5,7 @@ interface Poll
         NumOfSeats,
         Poll,
         PollError,
+        TieRank,
         Vote,
     ]
     imports []
@@ -12,8 +13,10 @@ interface Poll
 Poll : {
     seats : NumOfSeats,
     votes : List Vote,
-    tieRank : List CandidateID,
+    tieRank : TieRank,
 }
+
+TieRank : Dict CandidateID U64
 
 CandidateID : U64
 

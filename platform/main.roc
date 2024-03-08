@@ -2,7 +2,7 @@ platform "stv-wasm"
     requires {} { main : Poll -> Result (List CandidateID) PollError }
     exposes []
     packages {}
-    imports [Poll.{ CandidateID, Poll, PollError }]
+    imports [Poll.{ CandidateID, Poll, PollError, TieRank }]
     provides [mainForHost]
 
 mainForHost : Poll32 -> ReturnValue
@@ -46,5 +46,11 @@ pollToU64 : Poll32 -> Poll
 pollToU64 = \poll32 -> {
     seats: Num.toU64 poll32.seats,
     votes: poll32.votes |> List.map \vote -> vote |> List.map \cg -> cg |> List.map Num.toU64,
-    tieRank: poll32.tieRank |> List.map Num.toU64,
+    tieRank: convertTieRank poll32.tieRank,
 }
+
+convertTieRank : List U32 -> TieRank
+convertTieRank = \candidateIDs ->
+    List.mapWithIndex candidateIDs \id, index ->
+        (id |> Num.toU64, (List.len candidateIDs) - (index |> Num.toU64))
+    |> Dict.fromList
