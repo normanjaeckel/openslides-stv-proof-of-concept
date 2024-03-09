@@ -1,8 +1,10 @@
 const std = @import("std");
-const global_allocator = std.heap.wasm_allocator;
 const ArrayList = std.ArrayList;
 const mem = std.mem;
 const maxInt = std.math.maxInt;
+
+const builtin = @import("builtin");
+const global_allocator = if (builtin.target.cpu.arch == .wasm32) std.heap.wasm_allocator else std.heap.page_allocator;
 
 extern fn debug_string(str_bytes: ?[*]u8, str_len: usize) void;
 
@@ -21,7 +23,7 @@ export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data
 
     var result = global_allocator.alloc(u32, elected_candidates.len + 2) catch undefined;
     result[0] = 0;
-    result[1] = elected_candidates.len;
+    result[1] = @intCast(elected_candidates.len);
     @memcpy(result[2..], elected_candidates);
     // TODO: give JS the possibility to dealloc the result (also for the roc platform.)
     return result.ptr;
@@ -34,20 +36,29 @@ export fn allocUint32(length: u32) [*]u32 {
     return slice.ptr;
 }
 
-fn count(allocator: mem.Allocator, seats: u32, candidateCount: u32, voteCount: u32, data_pointer: [*]u32) ![]u32 {
+fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, data_pointer: [*]u32) ![]u32 {
     // TODO: validate poll
-    const tieRank = data_pointer[voteCount * candidateCount .. voteCount * candidateCount + candidateCount];
-    const votes = try sortVotes(allocator, candidateCount, voteCount, data_pointer);
-    // TODO votes is [][][]u32, this call to free only frees the topmost slice.
-    defer allocator.free(votes);
+    const tieRank = data_pointer[vote_count * candidate_count .. vote_count * candidate_count + candidate_count];
+    const votes = try sortVotes(allocator, candidate_count, vote_count, data_pointer);
+    defer {
+        // TODO: the memory if votes seems a bit fragmented.
+        for (votes) |vote| {
+            for (vote) |group| {
+                allocator.free(group);
+            }
+            allocator.free(vote);
+        }
+        allocator.free(votes);
+    }
+
     var elected_candidates = try ArrayList(u32).initCapacity(allocator, seats);
     var ignore = ArrayList(u32).init(allocator);
     defer ignore.deinit();
-    var vote_weights = try initWeights(allocator, votes.len);
+    var vote_weights = try initWeights(allocator, @intCast(votes.len));
     defer allocator.free(vote_weights);
     var highest_candidates = try allocator.alloc(?[]u32, votes.len);
     defer allocator.free(highest_candidates);
-    var counted_votes = try allocator.alloc(u64, candidateCount);
+    var counted_votes = try allocator.alloc(u64, candidate_count);
     defer allocator.free(counted_votes);
 
     while (true) {
@@ -61,9 +72,9 @@ fn count(allocator: mem.Allocator, seats: u32, candidateCount: u32, voteCount: u
 
         const remaininingSeats = seats - elected_candidates.items.len;
         const quota: u32 = @intCast((vote_sum / (remaininingSeats + 1)) + 1);
-        const winnerLooser = getWinnerAndLooser(counted_votes, tieRank, ignore.items, quota);
+        const winner_looser = getWinnerAndLooser(counted_votes, tieRank, ignore.items, quota);
 
-        switch (winnerLooser) {
+        switch (winner_looser) {
             WinnerLooser.winner => |winner| {
                 try elected_candidates.append(winner.candidateIdx);
                 if (remaininingSeats == 1) {
@@ -78,6 +89,16 @@ fn count(allocator: mem.Allocator, seats: u32, candidateCount: u32, voteCount: u
         }
     }
     return try elected_candidates.toOwnedSlice();
+}
+
+test "test 01 - only one winner because of many empty votes" {
+    //{ seats: 2, votes: [[1, 0, 0], [0, 0, 0], [0, 0, 0]], tieRank: [1, 2, 3] },
+    const allocator = std.testing.allocator;
+    var data = [_]u32{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3 };
+
+    const result = try count(allocator, 2, 3, 3, &data);
+    defer allocator.free(result);
+    try std.testing.expectEqualSlices(u32, result, &[_]u32{0});
 }
 
 fn getHighest(result: *[]?[]u32, votes: [][][]u32, ignore: []u32) void {
@@ -114,19 +135,19 @@ const WinnerLooser = union(enum) {
 
 fn getWinnerAndLooser(counted: []u64, tie_rank: []u32, ignore: []u32, quota: u32) WinnerLooser {
     var lowest_value: u64 = maxInt(u64);
-    var lowest_index: usize = undefined;
+    var lowest_index: u32 = undefined;
     for (counted, 0..) |candidate_votes, i| {
-        if (contains(ignore, i)) {
+        if (contains(ignore, @intCast(i))) {
             continue;
         }
 
         if (candidate_votes >= quota) {
-            return WinnerLooser{ .winner = Winner{ .candidateIdx = i, .votes = candidate_votes } };
+            return WinnerLooser{ .winner = Winner{ .candidateIdx = @intCast(i), .votes = candidate_votes } };
         }
 
         if (candidate_votes < lowest_value or (candidate_votes == lowest_value and tie_rank[i] < tie_rank[lowest_index])) {
             lowest_value = candidate_votes;
-            lowest_index = i;
+            lowest_index = @intCast(i);
         }
     }
     return WinnerLooser{ .looser = lowest_index };
@@ -138,7 +159,7 @@ fn updateVoteWeights(vote_weights: *[]u32, highest_candidates: []?[]u32, winner:
     for (highest_candidates, 0..) |may_candidate_group, i| {
         if (may_candidate_group) |candidate_group| {
             if (contains(candidate_group, winner.candidateIdx)) {
-                const x = vote_weights.*[i] / candidate_group.len;
+                const x: u32 = vote_weights.*[i] / @as(u32, @intCast(candidate_group.len));
                 vote_weights.*[i] = vote_weights.*[i] - x + @as(u32, @intCast(x * surplus / winner.votes));
             }
         }
@@ -153,7 +174,6 @@ fn initWeights(allocator: mem.Allocator, voteCount: u32) ![]u32 {
 
 fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, data_pointer: [*]u32) ![][][]u32 {
     var output = try allocator.alloc([][]u32, vote_count);
-
     var prefIndex = try allocator.alloc(PrefIndex, candidate_count);
     defer allocator.free(prefIndex);
 
@@ -162,10 +182,8 @@ fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, da
         const from = i * candidate_count;
         const vote = data_pointer[from .. from + candidate_count];
 
-        for (vote, 0..) |pref, candidateIdx| {
-            // TODO: Ignore pref == 0
-            //if (pref == 0) continue;
-            prefIndex[candidateIdx] = PrefIndex{ .amount = pref, .candidate = candidateIdx };
+        for (vote, 0..) |pref, candidate_idx| {
+            prefIndex[candidate_idx] = PrefIndex{ .amount = pref, .candidate = @intCast(candidate_idx) };
         }
         mem.sort(PrefIndex, prefIndex, {}, cmpPrefIndex);
         output[i] = try unifyPrefIndex(allocator, prefIndex);
@@ -174,7 +192,7 @@ fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, da
     return output;
 }
 
-const PrefIndex = struct { amount: u32, candidate: usize };
+const PrefIndex = struct { amount: u32, candidate: u32 };
 
 fn cmpPrefIndex(_: void, a: PrefIndex, b: PrefIndex) bool {
     return a.amount > b.amount;
@@ -185,6 +203,10 @@ fn unifyPrefIndex(allocator: mem.Allocator, prefIndex: []PrefIndex) ![][]u32 {
 
     var i: usize = 0;
     while (i < prefIndex.len) : (i += 1) {
+        if (prefIndex[i].amount == 0) {
+            break;
+        }
+
         if ((i == 0) or (prefIndex[i - 1].amount != prefIndex[i].amount)) {
             var l = try allocator.alloc(u32, 1);
             l[0] = prefIndex[i].candidate;
@@ -192,7 +214,8 @@ fn unifyPrefIndex(allocator: mem.Allocator, prefIndex: []PrefIndex) ![][]u32 {
         } else {
             const old = list.pop();
             var new = try allocator.alloc(u32, old.len + 1);
-            @memcpy(new, old);
+            @memcpy(new[0..old.len], old);
+            new[new.len - 1] = prefIndex[i].candidate;
             allocator.free(old);
             try list.append(new);
         }
