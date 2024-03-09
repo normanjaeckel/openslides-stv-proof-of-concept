@@ -36,7 +36,7 @@ export fn allocUint32(length: u32) [*]u32 {
     return slice.ptr;
 }
 
-fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, data_pointer: [*]u32) ![]u32 {
+pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, data_pointer: [*]u32) ![]u32 {
     // TODO: validate poll
     const tie_rank = data_pointer[vote_count * candidate_count .. vote_count * candidate_count + candidate_count];
     const votes = try sortVotes(allocator, candidate_count, vote_count, data_pointer);
@@ -89,68 +89,6 @@ fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count:
         }
     }
     return try elected_candidates.toOwnedSlice();
-}
-
-test "test 01 - only one winner because of many empty votes" {
-    //{ seats: 2, votes: [[1, 0, 0], [0, 0, 0], [0, 0, 0]], tieRank: [1, 2, 3] },
-    const allocator = std.testing.allocator;
-    var data = [_]u32{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3 };
-    const expect = &[_]u32{0};
-
-    const result = try count(allocator, 2, 3, 3, &data);
-    defer allocator.free(result);
-    try std.testing.expectEqualSlices(u32, result, expect);
-}
-
-test "test 02" {
-    //{ seats: 1, votes: [[1, 2, 3], [2, 3, 1], [3, 1, 2]], tieRank: [1, 2, 3] },
-    const allocator = std.testing.allocator;
-    var data = [_]u32{ 1, 2, 3, 2, 3, 1, 3, 1, 2, 1, 2, 3 };
-    const expect = &[_]u32{2};
-
-    const result = try count(allocator, 1, 3, 3, &data);
-    defer allocator.free(result);
-    try std.testing.expectEqualSlices(u32, result, expect);
-}
-
-test "test 03" {
-    const allocator = std.testing.allocator;
-    var data = [_]u32{ 4, 1, 3, 2, 2, 4, 1, 3, 1, 4, 2, 3, 1, 2, 4, 3, 1, 4, 3, 0, 3, 2, 4, 1, 3, 4, 1, 2, 3, 4, 1, 2, 4, 3, 2, 0, 2, 3, 4, 1, 1, 2, 3, 4 };
-    const expect = &[_]u32{ 1, 2 };
-
-    const result = try count(allocator, 2, 4, 10, &data);
-    defer allocator.free(result);
-    try std.testing.expectEqualSlices(u32, result, expect);
-}
-
-test "test 04" {
-    const allocator = std.testing.allocator;
-    var data = [_]u32{ 4, 1, 3, 2, 2, 4, 1, 3, 2, 4, 1, 3, 1, 2, 4, 3, 1, 4, 0, 3, 3, 2, 4, 1, 3, 4, 1, 2, 3, 4, 1, 2, 4, 3, 2, 0, 2, 3, 4, 1, 1, 2, 3, 4 };
-    const expect = &[_]u32{ 1, 0 };
-
-    const result = try count(allocator, 2, 4, 10, &data);
-    defer allocator.free(result);
-    try std.testing.expectEqualSlices(u32, result, expect);
-}
-
-test "test 05" {
-    const allocator = std.testing.allocator;
-    var data = [_]u32{ 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4 };
-    const expect = &[_]u32{1};
-
-    const result = try count(allocator, 2, 4, 10, &data);
-    defer allocator.free(result);
-    try std.testing.expectEqualSlices(u32, result, expect);
-}
-
-test "test 06" {
-    const allocator = std.testing.allocator;
-    var data = [_]u32{ 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 1, 4, 0, 0, 0, 4, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2, 3, 4 };
-    const expect = &[_]u32{ 1, 3 };
-
-    const result = try count(allocator, 2, 4, 10, &data);
-    defer allocator.free(result);
-    try std.testing.expectEqualSlices(u32, result, expect);
 }
 
 fn getHighest(result: *[]?[]u32, votes: [][][]u32, ignore: []u32) void {
