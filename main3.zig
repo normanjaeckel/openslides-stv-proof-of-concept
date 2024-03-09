@@ -38,7 +38,7 @@ export fn allocUint32(length: u32) [*]u32 {
 
 fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, data_pointer: [*]u32) ![]u32 {
     // TODO: validate poll
-    const tieRank = data_pointer[vote_count * candidate_count .. vote_count * candidate_count + candidate_count];
+    const tie_rank = data_pointer[vote_count * candidate_count .. vote_count * candidate_count + candidate_count];
     const votes = try sortVotes(allocator, candidate_count, vote_count, data_pointer);
     defer {
         // TODO: the memory if votes seems a bit fragmented.
@@ -70,18 +70,18 @@ fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count:
             break;
         }
 
-        const remaininingSeats = seats - elected_candidates.items.len;
-        const quota: u32 = @intCast((vote_sum / (remaininingSeats + 1)) + 1);
-        const winner_looser = getWinnerAndLooser(counted_votes, tieRank, ignore.items, quota);
+        const remainining_seats = seats - elected_candidates.items.len;
+        const quota: u32 = @intCast((vote_sum / (remainining_seats + 1)) + 1);
+        const winner_looser = getWinnerAndLooser(counted_votes, tie_rank, ignore.items, quota);
 
         switch (winner_looser) {
             WinnerLooser.winner => |winner| {
-                try elected_candidates.append(winner.candidateIdx);
-                if (remaininingSeats == 1) {
+                try elected_candidates.append(winner.candidate_idx);
+                if (remainining_seats == 1) {
                     break;
                 }
+                try ignore.append(winner.candidate_idx);
                 updateVoteWeights(&vote_weights, highest_candidates, winner, quota);
-                try ignore.append(winner.candidateIdx);
             },
             WinnerLooser.looser => |looser| {
                 try ignore.append(looser);
@@ -124,7 +124,7 @@ fn countVotes(result: *[]u64, vote_weights: []u32, vote_groups: []?[]u32) void {
 }
 
 const Winner = struct {
-    candidateIdx: u32,
+    candidate_idx: u32,
     votes: u64,
 };
 
@@ -142,7 +142,7 @@ fn getWinnerAndLooser(counted: []u64, tie_rank: []u32, ignore: []u32, quota: u32
         }
 
         if (candidate_votes >= quota) {
-            return WinnerLooser{ .winner = Winner{ .candidateIdx = @intCast(i), .votes = candidate_votes } };
+            return WinnerLooser{ .winner = Winner{ .candidate_idx = @intCast(i), .votes = candidate_votes } };
         }
 
         if (candidate_votes < lowest_value or (candidate_votes == lowest_value and tie_rank[i] < tie_rank[lowest_index])) {
@@ -158,7 +158,7 @@ fn updateVoteWeights(vote_weights: *[]u32, highest_candidates: []?[]u32, winner:
 
     for (highest_candidates, 0..) |may_candidate_group, i| {
         if (may_candidate_group) |candidate_group| {
-            if (contains(candidate_group, winner.candidateIdx)) {
+            if (contains(candidate_group, winner.candidate_idx)) {
                 const x: u32 = vote_weights.*[i] / @as(u32, @intCast(candidate_group.len));
                 vote_weights.*[i] = vote_weights.*[i] - x + @as(u32, @intCast(x * surplus / winner.votes));
             }
@@ -166,16 +166,16 @@ fn updateVoteWeights(vote_weights: *[]u32, highest_candidates: []?[]u32, winner:
     }
 }
 
-fn initWeights(allocator: mem.Allocator, voteCount: u32) ![]u32 {
-    var vote_weights = try allocator.alloc(u32, voteCount);
+fn initWeights(allocator: mem.Allocator, vote_count: u32) ![]u32 {
+    var vote_weights = try allocator.alloc(u32, vote_count);
     @memset(vote_weights, 1_000_000);
     return vote_weights;
 }
 
 fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, data_pointer: [*]u32) ![][][]u32 {
     var output = try allocator.alloc([][]u32, vote_count);
-    var prefIndex = try allocator.alloc(PrefIndex, candidate_count);
-    defer allocator.free(prefIndex);
+    var pref_index = try allocator.alloc(PrefIndex, candidate_count);
+    defer allocator.free(pref_index);
 
     var i: usize = 0;
     while (i < vote_count) : (i += 1) {
@@ -183,10 +183,10 @@ fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, da
         const vote = data_pointer[from .. from + candidate_count];
 
         for (vote, 0..) |pref, candidate_idx| {
-            prefIndex[candidate_idx] = PrefIndex{ .amount = pref, .candidate = @intCast(candidate_idx) };
+            pref_index[candidate_idx] = PrefIndex{ .amount = pref, .candidate = @intCast(candidate_idx) };
         }
-        mem.sort(PrefIndex, prefIndex, {}, cmpPrefIndex);
-        output[i] = try unifyPrefIndex(allocator, prefIndex);
+        mem.sort(PrefIndex, pref_index, {}, cmpPrefIndex);
+        output[i] = try unifyPrefIndex(allocator, pref_index);
     }
 
     return output;
@@ -198,24 +198,24 @@ fn cmpPrefIndex(_: void, a: PrefIndex, b: PrefIndex) bool {
     return a.amount > b.amount;
 }
 
-fn unifyPrefIndex(allocator: mem.Allocator, prefIndex: []PrefIndex) ![][]u32 {
-    var list = try ArrayList([]u32).initCapacity(allocator, prefIndex.len);
+fn unifyPrefIndex(allocator: mem.Allocator, pref_index: []PrefIndex) ![][]u32 {
+    var list = try ArrayList([]u32).initCapacity(allocator, pref_index.len);
 
     var i: usize = 0;
-    while (i < prefIndex.len) : (i += 1) {
-        if (prefIndex[i].amount == 0) {
+    while (i < pref_index.len) : (i += 1) {
+        if (pref_index[i].amount == 0) {
             break;
         }
 
-        if ((i == 0) or (prefIndex[i - 1].amount != prefIndex[i].amount)) {
+        if ((i == 0) or (pref_index[i - 1].amount != pref_index[i].amount)) {
             var l = try allocator.alloc(u32, 1);
-            l[0] = prefIndex[i].candidate;
+            l[0] = pref_index[i].candidate;
             try list.append(l);
         } else {
             const old = list.pop();
             var new = try allocator.alloc(u32, old.len + 1);
             @memcpy(new[0..old.len], old);
-            new[new.len - 1] = prefIndex[i].candidate;
+            new[new.len - 1] = pref_index[i].candidate;
             allocator.free(old);
             try list.append(new);
         }
