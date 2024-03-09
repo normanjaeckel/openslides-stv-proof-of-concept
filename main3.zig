@@ -168,8 +168,8 @@ fn countVotes(result: *[]u64, vote_weights: []u32, vote_groups: []?[]u32) void {
     for (vote_groups, 0..) |may_vote_group, i| {
         if (may_vote_group) |vote_group| {
             const weight = vote_weights[i] / vote_group.len;
-            for (vote_group) |candidateIdx| {
-                result.*[candidateIdx] += weight;
+            for (vote_group) |candidate_idx| {
+                result.*[candidate_idx] += weight;
             }
         }
     }
