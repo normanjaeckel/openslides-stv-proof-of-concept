@@ -192,23 +192,25 @@ fn unifyPrefIndex(allocator: mem.Allocator, pref_index: []const PrefIndex) ![][]
     var list = try ArrayList([]u32).initCapacity(allocator, pref_index.len);
 
     var i: usize = 0;
-    while (i < pref_index.len) : (i += 1) {
+    while (i < pref_index.len) {
         if (pref_index[i].amount == 0) {
             break;
         }
 
-        if ((i == 0) or (pref_index[i - 1].amount != pref_index[i].amount)) {
-            var l = try allocator.alloc(u32, 1);
-            l[0] = pref_index[i].candidate;
-            try list.append(l);
-        } else {
-            const old = list.pop();
-            var new = try allocator.alloc(u32, old.len + 1);
-            @memcpy(new[0..old.len], old);
-            new[new.len - 1] = pref_index[i].candidate;
-            allocator.free(old);
-            try list.append(new);
+        var same_items: usize = 1;
+        while (i + same_items < pref_index.len) : (same_items += 1) {
+            if (pref_index[i].amount != pref_index[i + same_items].amount) {
+                break;
+            }
         }
+
+        var group = try allocator.alloc(u32, same_items);
+        for (0..same_items) |j| {
+            group[j] = pref_index[i + j].candidate;
+        }
+
+        try list.append(group);
+        i += same_items;
     }
 
     return list.toOwnedSlice();
