@@ -14,7 +14,7 @@ fn debug(comptime fmt: []const u8, args: anytype) void {
     debug_string(line.ptr, line.len);
 }
 
-export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data_pointer: [*]u32) [*]u32 {
+export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data_pointer: [*]const u32) [*]u32 {
     const memory_size: usize = candidates * (votes + 1);
     defer global_allocator.free(data_pointer[0..memory_size]);
 
@@ -36,7 +36,7 @@ export fn allocUint32(length: u32) [*]u32 {
     return slice.ptr;
 }
 
-pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, data_pointer: [*]u32) ![]u32 {
+pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, data_pointer: [*]const u32) ![]u32 {
     // TODO: validate poll
     const tie_rank = data_pointer[vote_count * candidate_count .. vote_count * candidate_count + candidate_count];
     const votes = try sortVotes(allocator, candidate_count, vote_count, data_pointer);
@@ -91,7 +91,7 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
     return try elected_candidates.toOwnedSlice();
 }
 
-fn getHighest(result: *[]?[]u32, votes: [][][]u32, ignore: []u32) void {
+fn getHighest(result: *[]?[]u32, votes: []const [][]u32, ignore: []const u32) void {
     for (votes, 0..) |vote, i| {
         result.*[i] = for (vote) |group| {
             if (!contains_list(group, ignore)) {
@@ -101,7 +101,7 @@ fn getHighest(result: *[]?[]u32, votes: [][][]u32, ignore: []u32) void {
     }
 }
 
-fn countVotes(result: *[]u64, vote_weights: []u32, vote_groups: []?[]u32) void {
+fn countVotes(result: *[]u64, vote_weights: []const u32, vote_groups: []const ?[]const u32) void {
     @memset(result.*, 0);
     for (vote_groups, 0..) |may_vote_group, i| {
         if (may_vote_group) |vote_group| {
@@ -123,7 +123,7 @@ const WinnerLooser = union(enum) {
     looser: u32,
 };
 
-fn getWinnerAndLooser(counted: []u64, tie_rank: []u32, ignore: []u32, quota: u32) WinnerLooser {
+fn getWinnerAndLooser(counted: []const u64, tie_rank: []const u32, ignore: []const u32, quota: u32) WinnerLooser {
     var lowest_value: u64 = maxInt(u64);
     var lowest_index: u32 = undefined;
     for (counted, 0..) |candidate_votes, i| {
@@ -143,7 +143,7 @@ fn getWinnerAndLooser(counted: []u64, tie_rank: []u32, ignore: []u32, quota: u32
     return WinnerLooser{ .looser = lowest_index };
 }
 
-fn updateVoteWeights(vote_weights: *[]u32, highest_candidates: []?[]u32, winner: Winner, quota: u32) void {
+fn updateVoteWeights(vote_weights: *[]u32, highest_candidates: []const ?[]const u32, winner: Winner, quota: u32) void {
     const surplus = winner.votes - quota;
 
     for (highest_candidates, 0..) |may_candidate_group, i| {
@@ -162,7 +162,7 @@ fn initWeights(allocator: mem.Allocator, vote_count: u32) ![]u32 {
     return vote_weights;
 }
 
-fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, data_pointer: [*]u32) ![][][]u32 {
+fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, data_pointer: [*]const u32) ![][][]u32 {
     var output = try allocator.alloc([][]u32, vote_count);
     var pref_index = try allocator.alloc(PrefIndex, candidate_count);
     defer allocator.free(pref_index);
@@ -188,7 +188,7 @@ fn cmpPrefIndex(_: void, a: PrefIndex, b: PrefIndex) bool {
     return a.amount > b.amount;
 }
 
-fn unifyPrefIndex(allocator: mem.Allocator, pref_index: []PrefIndex) ![][]u32 {
+fn unifyPrefIndex(allocator: mem.Allocator, pref_index: []const PrefIndex) ![][]u32 {
     var list = try ArrayList([]u32).initCapacity(allocator, pref_index.len);
 
     var i: usize = 0;
@@ -222,7 +222,7 @@ fn sum(slice: []u64) u64 {
     return result;
 }
 
-fn contains_list(a_list: []u32, b_list: []u32) bool {
+fn contains_list(a_list: []const u32, b_list: []const u32) bool {
     for (a_list) |a| {
         for (b_list) |b| {
             if (a == b) {
@@ -233,7 +233,7 @@ fn contains_list(a_list: []u32, b_list: []u32) bool {
     return false;
 }
 
-fn contains(a_list: []u32, v: u32) bool {
+fn contains(a_list: []const u32, v: u32) bool {
     for (a_list) |a| {
         if (a == v) {
             return true;
