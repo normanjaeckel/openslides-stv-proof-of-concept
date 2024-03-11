@@ -66,7 +66,7 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
         const remainining_seats = seats - elected_candidates.len;
         const quota: u32 = @intCast((vote_sum / (remainining_seats + 1)) + 1);
 
-        const winner_looser = getWinnerAndLooser(counted_votes, tie_rank, quota);
+        const winner_looser = getWinnerOrLooser(counted_votes, tie_rank, quota);
 
         switch (winner_looser) {
             WinnerLooser.winner => |winner| {
@@ -131,7 +131,7 @@ const WinnerLooser = union(enum) {
     looser: u32,
 };
 
-fn getWinnerAndLooser(counted: []const ?u64, tie_rank: []const CandidateIdx, quota: u32) WinnerLooser {
+fn getWinnerOrLooser(counted: []const ?u64, tie_rank: []const CandidateIdx, quota: u32) WinnerLooser {
     var lowest_value: u64 = maxInt(u64);
     var lowest_index: u32 = undefined;
     for (counted, 0..) |may_candidate_votes, i| {
