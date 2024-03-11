@@ -20,14 +20,9 @@ export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data
     defer global_allocator.free(data_pointer[0..memory_size]);
 
     const elected_candidates = count(global_allocator, seats, candidates, votes, data_pointer[0..memory_size]) catch unreachable;
-    defer global_allocator.free(elected_candidates);
 
-    var result = global_allocator.alloc(u32, elected_candidates.len + 2) catch unreachable;
-    result[0] = 0;
-    result[1] = @intCast(elected_candidates.len);
-    @memcpy(result[2..], elected_candidates);
     // TODO: give JS the possibility to dealloc the result (also for the roc platform.)
-    return result.ptr;
+    return elected_candidates.ptr;
 }
 
 export fn allocUint32(length: u32) [*]u32 {
@@ -71,8 +66,7 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
 
     while (true) {
         getHighest(&highest_candidates, votes, ignore.items());
-        countVotes(&counted_votes, vote_weights, highest_candidates);
-        const vote_sum = sum(counted_votes);
+        const vote_sum = countVotes(&counted_votes, vote_weights, highest_candidates);
 
         if (vote_sum == 0) {
             break;
@@ -109,16 +103,19 @@ fn getHighest(result: *[]?[]u32, votes: []const [][]u32, ignore: []const u32) vo
     }
 }
 
-fn countVotes(result: *[]u64, vote_weights: []const u32, vote_groups: []const ?[]const u32) void {
+fn countVotes(result: *[]u64, vote_weights: []const u32, vote_groups: []const ?[]const u32) u64 {
     @memset(result.*, 0);
+    var sum: u64 = 0;
     for (vote_groups, 0..) |may_vote_group, i| {
         if (may_vote_group) |vote_group| {
             const weight = vote_weights[i] / vote_group.len;
             for (vote_group) |candidate_idx| {
                 result.*[candidate_idx] += weight;
             }
+            sum += weight;
         }
     }
+    return sum;
 }
 
 const Winner = struct {
@@ -303,14 +300,6 @@ fn unifyPrefIndex(allocator: mem.Allocator, pref_index: []const PrefIndex) ![][]
     }
 
     return list.toOwnedSlice();
-}
-
-fn sum(slice: []u64) u64 {
-    var result: u64 = 0;
-    for (slice) |e| {
-        result += e;
-    }
-    return result;
 }
 
 fn contains_list(a_list: []const u32, b_list: []const u32) bool {
