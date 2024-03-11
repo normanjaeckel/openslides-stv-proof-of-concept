@@ -9,7 +9,7 @@ const global_allocator = if (builtin.target.cpu.arch == .wasm32) std.heap.wasm_a
 extern fn debug_string(str_bytes: ?[*]u8, str_len: usize) void;
 
 fn debug(comptime fmt: []const u8, args: anytype) void {
-    const line = std.fmt.allocPrint(global_allocator, fmt, args) catch undefined;
+    const line = std.fmt.allocPrint(global_allocator, fmt, args) catch unreachable;
     defer global_allocator.free(line);
     debug_string(line.ptr, line.len);
 }
@@ -18,10 +18,10 @@ export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data
     const memory_size: usize = candidates * (votes + 1);
     defer global_allocator.free(data_pointer[0..memory_size]);
 
-    const elected_candidates = count(global_allocator, seats, candidates, votes, data_pointer) catch undefined;
+    const elected_candidates = count(global_allocator, seats, candidates, votes, data_pointer) catch unreachable;
     defer global_allocator.free(elected_candidates);
 
-    var result = global_allocator.alloc(u32, elected_candidates.len + 2) catch undefined;
+    var result = global_allocator.alloc(u32, elected_candidates.len + 2) catch unreachable;
     result[0] = 0;
     result[1] = @intCast(elected_candidates.len);
     @memcpy(result[2..], elected_candidates);
@@ -157,7 +157,7 @@ fn updateVoteWeights(vote_weights: *[]u32, highest_candidates: []const ?[]const 
 }
 
 fn initWeights(allocator: mem.Allocator, vote_count: u32) ![]u32 {
-    var vote_weights = try allocator.alloc(u32, vote_count);
+    const vote_weights = try allocator.alloc(u32, vote_count);
     @memset(vote_weights, 1_000_000);
     return vote_weights;
 }
@@ -169,8 +169,8 @@ fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, da
 
     var i: usize = 0;
     while (i < vote_count) : (i += 1) {
-        const from = i * candidate_count;
-        const vote = data_pointer[from .. from + candidate_count];
+        const vote_idx = i * candidate_count;
+        const vote = data_pointer[vote_idx .. vote_idx + candidate_count];
 
         for (vote, 0..) |pref, candidate_idx| {
             pref_index[candidate_idx] = PrefIndex{ .amount = pref, .candidate = @intCast(candidate_idx) };
@@ -180,6 +180,87 @@ fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, da
     }
 
     return output;
+}
+
+test "sort votes" {
+    const allocator = std.testing.allocator;
+
+    const got = try sortVotes(allocator, 2, 3, &[_]u32{ 1, 2, 3, 3, 2, 1 });
+    defer {
+        // TODO: the memory if votes seems a bit fragmented.
+        for (got) |vote| {
+            for (vote) |group| {
+                allocator.free(group);
+            }
+            allocator.free(vote);
+        }
+        allocator.free(got);
+    }
+
+    var parsed = try std.json.parseFromSlice(
+        [][][]u32,
+        allocator,
+        \\ [[[1],[0]], [[0,1]], [[0],[1]]]
+    ,
+        .{},
+    );
+    defer parsed.deinit();
+
+    try std.testing.expectEqualDeep(parsed.value, got);
+}
+
+test "sort votes with zero values" {
+    const allocator = std.testing.allocator;
+
+    const got = try sortVotes(allocator, 2, 3, &[_]u32{ 0, 2, 0, 4, 0, 6 });
+    defer {
+        // TODO: the memory if votes seems a bit fragmented.
+        for (got) |vote| {
+            for (vote) |group| {
+                allocator.free(group);
+            }
+            allocator.free(vote);
+        }
+        allocator.free(got);
+    }
+
+    var parsed = try std.json.parseFromSlice(
+        [][][]u32,
+        allocator,
+        \\[[[1]], [[1]], [[1]]]
+    ,
+        .{},
+    );
+    defer parsed.deinit();
+
+    try std.testing.expectEqualDeep(parsed.value, got);
+}
+
+test "same value" {
+    const allocator = std.testing.allocator;
+
+    const got = try sortVotes(allocator, 2, 3, &[_]u32{ 2, 2, 2, 2, 2, 2 });
+    defer {
+        // TODO: the memory if votes seems a bit fragmented.
+        for (got) |vote| {
+            for (vote) |group| {
+                allocator.free(group);
+            }
+            allocator.free(vote);
+        }
+        allocator.free(got);
+    }
+
+    var parsed = try std.json.parseFromSlice(
+        [][][]u32,
+        allocator,
+        \\[[[0,1]], [[0,1]], [[0,1]]]
+    ,
+        .{},
+    );
+    defer parsed.deinit();
+
+    try std.testing.expectEqualDeep(parsed.value, got);
 }
 
 const PrefIndex = struct { amount: u32, candidate: u32 };
