@@ -2,6 +2,7 @@ const std = @import("std");
 const ArrayList = std.ArrayList;
 const mem = std.mem;
 const maxInt = std.math.maxInt;
+const assert = std.debug.assert;
 
 const builtin = @import("builtin");
 const global_allocator = if (builtin.target.cpu.arch == .wasm32) std.heap.wasm_allocator else std.heap.page_allocator;
@@ -18,7 +19,7 @@ export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data
     const memory_size: usize = candidates * (votes + 1);
     defer global_allocator.free(data_pointer[0..memory_size]);
 
-    const elected_candidates = count(global_allocator, seats, candidates, votes, data_pointer) catch unreachable;
+    const elected_candidates = count(global_allocator, seats, candidates, votes, data_pointer[0..memory_size]) catch unreachable;
     defer global_allocator.free(elected_candidates);
 
     var result = global_allocator.alloc(u32, elected_candidates.len + 2) catch unreachable;
@@ -36,10 +37,12 @@ export fn allocUint32(length: u32) [*]u32 {
     return slice.ptr;
 }
 
-pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, data_pointer: [*]const u32) ![]u32 {
+const CandidateIdx = u32;
+
+pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, raw_votes: []const u32) ![]u32 {
     // TODO: validate poll
-    const tie_rank = data_pointer[vote_count * candidate_count .. vote_count * candidate_count + candidate_count];
-    const votes = try sortVotes(allocator, candidate_count, vote_count, data_pointer);
+    const tie_rank = raw_votes[vote_count * candidate_count ..];
+    const votes = try sortVotes(allocator, candidate_count, vote_count, raw_votes);
     defer {
         // TODO: the memory if votes seems a bit fragmented.
         for (votes) |vote| {
@@ -51,18 +54,23 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
         allocator.free(votes);
     }
 
-    var elected_candidates = try ArrayList(u32).initCapacity(allocator, seats);
-    var ignore = ArrayList(u32).init(allocator);
-    defer ignore.deinit();
+    const ignore_data = try allocator.alloc(u32, candidate_count);
+    defer allocator.free(ignore_data);
+    var ignore = GrowList(u32).init(ignore_data);
+
     var vote_weights = try initWeights(allocator, @intCast(votes.len));
     defer allocator.free(vote_weights);
+
     var highest_candidates = try allocator.alloc(?[]u32, votes.len);
     defer allocator.free(highest_candidates);
+
     var counted_votes = try allocator.alloc(u64, candidate_count);
     defer allocator.free(counted_votes);
 
+    var elected_candidates = try ElectedCandidateList.init(allocator, seats);
+
     while (true) {
-        getHighest(&highest_candidates, votes, ignore.items);
+        getHighest(&highest_candidates, votes, ignore.items());
         countVotes(&counted_votes, vote_weights, highest_candidates);
         const vote_sum = sum(counted_votes);
 
@@ -70,25 +78,25 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
             break;
         }
 
-        const remainining_seats = seats - elected_candidates.items.len;
+        const remainining_seats = seats - elected_candidates.len;
         const quota: u32 = @intCast((vote_sum / (remainining_seats + 1)) + 1);
-        const winner_looser = getWinnerAndLooser(counted_votes, tie_rank, ignore.items, quota);
+        const winner_looser = getWinnerAndLooser(counted_votes, tie_rank, ignore.items(), quota);
 
         switch (winner_looser) {
             WinnerLooser.winner => |winner| {
-                try elected_candidates.append(winner.candidate_idx);
+                elected_candidates.add(winner.candidate_idx);
                 if (remainining_seats == 1) {
                     break;
                 }
-                try ignore.append(winner.candidate_idx);
+                ignore.add(winner.candidate_idx);
                 updateVoteWeights(&vote_weights, highest_candidates, winner, quota);
             },
             WinnerLooser.looser => |looser| {
-                try ignore.append(looser);
+                ignore.add(looser);
             },
         }
     }
-    return try elected_candidates.toOwnedSlice();
+    return elected_candidates.finalize();
 }
 
 fn getHighest(result: *[]?[]u32, votes: []const [][]u32, ignore: []const u32) void {
@@ -162,7 +170,7 @@ fn initWeights(allocator: mem.Allocator, vote_count: u32) ![]u32 {
     return vote_weights;
 }
 
-fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, data_pointer: [*]const u32) ![][][]u32 {
+fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, raw_votes: []const u32) ![][][]u32 {
     var output = try allocator.alloc([][]u32, vote_count);
     var pref_index = try allocator.alloc(PrefIndex, candidate_count);
     defer allocator.free(pref_index);
@@ -170,7 +178,7 @@ fn sortVotes(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, da
     var i: usize = 0;
     while (i < vote_count) : (i += 1) {
         const vote_idx = i * candidate_count;
-        const vote = data_pointer[vote_idx .. vote_idx + candidate_count];
+        const vote = raw_votes[vote_idx .. vote_idx + candidate_count];
 
         for (vote, 0..) |pref, candidate_idx| {
             pref_index[candidate_idx] = PrefIndex{ .amount = pref, .candidate = @intCast(candidate_idx) };
@@ -324,3 +332,212 @@ fn contains(a_list: []const u32, v: u32) bool {
     }
     return false;
 }
+
+fn GrowList(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        slice: []T,
+        len: usize,
+
+        fn init(slice: []T) Self {
+            return Self{
+                .slice = slice,
+                .len = 0,
+            };
+        }
+
+        fn add(self: *Self, v: T) void {
+            assert(self.len <= self.slice.len);
+            self.slice[self.len] = v;
+            self.len += 1;
+        }
+
+        fn items(self: Self) []T {
+            return self.slice[0..self.len];
+        }
+    };
+}
+
+const ElectedCandidateList = struct {
+    allocator: mem.Allocator,
+    slice: []CandidateIdx,
+    len: usize,
+
+    fn init(allocator: mem.Allocator, seats: u32) !ElectedCandidateList {
+        const slice = try allocator.alloc(CandidateIdx, seats + 2);
+        slice[0] = 0;
+        slice[1] = seats;
+        return ElectedCandidateList{
+            .allocator = allocator,
+            .slice = slice,
+            .len = 0,
+        };
+    }
+
+    fn finalize(self: ElectedCandidateList) []CandidateIdx {
+        const v = self.allocator.resize(self.slice, self.len + 2);
+        assert(v);
+        return self.slice[0 .. self.len + 2];
+    }
+
+    fn add(self: *ElectedCandidateList, candidate_idx: CandidateIdx) void {
+        assert(2 + self.len < self.slice.len);
+
+        self.slice[2 + self.len] = candidate_idx;
+        self.len += 1;
+    }
+};
+
+test "test 01 - only one winner because of many empty votes" {
+    try callCount(
+        \\{
+        \\  "seats": 2,
+        \\  "tie_rank": [1, 2, 3],
+        \\  "votes": [[1, 0, 0], [0, 0, 0], [0, 0, 0]],
+        \\  "expect": [0]
+        \\}
+    );
+}
+
+test "test 02" {
+    try callCount(
+        \\{
+        \\  "seats": 1,
+        \\  "tie_rank": [1, 2, 3],
+        \\  "votes": [[1, 2, 3], [2, 3, 1], [3, 1, 2]],
+        \\  "expect": [2]
+        \\}
+    );
+}
+
+test "test 03" {
+    try callCount(
+        \\{
+        \\  "seats": 2,
+        \\  "tie_rank": [1, 2, 3, 4],
+        \\  "votes": [
+        \\      [4, 1, 3, 2],
+        \\      [2, 4, 1, 3],
+        \\      [1, 4, 2, 3],
+        \\      [1, 2, 4, 3],
+        \\      [1, 4, 3, 0],
+        \\      [3, 2, 4, 1],
+        \\      [3, 4, 1, 2],
+        \\      [3, 4, 1, 2],
+        \\      [4, 3, 2, 0],
+        \\      [2, 3, 4, 1]
+        \\  ],
+        \\  "expect": [1, 2]
+        \\}
+    );
+}
+
+test "test 04" {
+    try callCount(
+        \\{
+        \\  "seats": 2,
+        \\  "tie_rank": [1, 2, 3, 4],
+        \\  "votes": [
+        \\      [4, 1, 3, 2],
+        \\      [2, 4, 1, 3],
+        \\      [2, 4, 1, 3],
+        \\      [1, 2, 4, 3],
+        \\      [1, 4, 0, 3],
+        \\      [3, 2, 4, 1],
+        \\      [3, 4, 1, 2],
+        \\      [3, 4, 1, 2],
+        \\      [4, 3, 2, 0],
+        \\      [2, 3, 4, 1]
+        \\  ],
+        \\  "expect": [1, 0]
+        \\}
+    );
+}
+
+test "test 05" {
+    try callCount(
+        \\{
+        \\  "seats": 2,
+        \\  "tie_rank": [1, 2, 3, 4],
+        \\  "votes": [
+        \\      [0, 0, 0, 0],
+        \\      [0, 4, 0, 0],
+        \\      [0, 4, 0, 0],
+        \\      [0, 2, 0, 0],
+        \\      [0, 4, 0, 0],
+        \\      [0, 0, 0, 0],
+        \\      [0, 4, 0, 0],
+        \\      [0, 4, 0, 0],
+        \\      [0, 0, 0, 0],
+        \\      [0, 0, 0, 0]
+        \\  ],
+        \\  "expect": [1]
+        \\}
+    );
+}
+
+test "test 06" {
+    try callCount(
+        \\{
+        \\  "seats": 2,
+        \\  "tie_rank": [1, 2, 3, 4],
+        \\  "votes": [
+        \\      [0, 0, 0, 0],
+        \\      [0, 4, 0, 0],
+        \\      [0, 4, 0, 0],
+        \\      [0, 2, 0, 0],
+        \\      [0, 4, 0, 0],
+        \\      [0, 0, 0, 0],
+        \\      [1, 4, 0, 0],
+        \\      [0, 4, 0, 1],
+        \\      [1, 0, 0, 0],
+        \\      [0, 0, 0, 1]
+        \\  ],
+        \\  "expect": [1, 3]
+        \\}
+    );
+}
+
+fn callCount(json_data: []const u8) !void {
+    const allocator = std.testing.allocator;
+
+    var parsed = try std.json.parseFromSlice(TestData, allocator, json_data, .{});
+    defer parsed.deinit();
+
+    const data = parsed.value;
+
+    const raw_data = try data.rawVotes(allocator);
+    defer allocator.free(raw_data);
+
+    const result = try count(allocator, data.seats, data.candidateCount(), data.voteCount(), raw_data);
+    defer allocator.free(result);
+    try std.testing.expectEqualSlices(u32, data.expect, result[2..]);
+}
+
+const TestData = struct {
+    seats: u32,
+    tie_rank: []u32,
+    votes: [][]u32,
+    expect: []u32,
+
+    pub fn rawVotes(self: TestData, allocator: std.mem.Allocator) ![]u32 {
+        var result = try allocator.alloc(u32, (self.candidateCount() * (self.voteCount() + 1)));
+        for (self.votes, 0..) |vote, i| {
+            for (vote, 0..) |pref, j| {
+                result[i * self.candidateCount() + j] = pref;
+            }
+        }
+        for (self.tie_rank, 0..) |pref, i| {
+            result[self.voteCount() * self.candidateCount() + i] = pref;
+        }
+        return result;
+    }
+
+    pub fn candidateCount(self: TestData) u32 {
+        return @intCast(self.tie_rank.len);
+    }
+
+    pub fn voteCount(self: TestData) u32 {
+        return @intCast(self.votes.len);
+    }
+};
