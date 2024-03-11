@@ -59,14 +59,14 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
     var highest_candidates = try allocator.alloc(?[]u32, votes.len);
     defer allocator.free(highest_candidates);
 
-    var counted_votes = try allocator.alloc(u64, candidate_count);
+    var counted_votes = try allocator.alloc(?u64, candidate_count);
     defer allocator.free(counted_votes);
 
     var elected_candidates = try ElectedCandidateList.init(allocator, seats);
 
     while (true) {
         getHighest(&highest_candidates, votes, ignore.items());
-        const vote_sum = countVotes(&counted_votes, vote_weights, highest_candidates);
+        const vote_sum = countVotes(&counted_votes, vote_weights, highest_candidates, ignore.items());
 
         if (vote_sum == 0) {
             break;
@@ -74,7 +74,8 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
 
         const remainining_seats = seats - elected_candidates.len;
         const quota: u32 = @intCast((vote_sum / (remainining_seats + 1)) + 1);
-        const winner_looser = getWinnerAndLooser(counted_votes, tie_rank, ignore.items(), quota);
+
+        const winner_looser = getWinnerAndLooser(counted_votes, tie_rank, quota);
 
         switch (winner_looser) {
             WinnerLooser.winner => |winner| {
@@ -103,14 +104,20 @@ fn getHighest(result: *[]?[]u32, votes: []const [][]u32, ignore: []const u32) vo
     }
 }
 
-fn countVotes(result: *[]u64, vote_weights: []const u32, vote_groups: []const ?[]const u32) u64 {
+fn countVotes(result: *[]?u64, vote_weights: []const u32, vote_groups: []const ?[]const u32, ignore: []CandidateIdx) u64 {
     @memset(result.*, 0);
+    for (ignore) |candidate_idx| {
+        result.*[candidate_idx] = null;
+    }
+
     var sum: u64 = 0;
     for (vote_groups, 0..) |may_vote_group, i| {
         if (may_vote_group) |vote_group| {
             const weight = vote_weights[i] / vote_group.len;
             for (vote_group) |candidate_idx| {
-                result.*[candidate_idx] += weight;
+                if (result.*[candidate_idx]) |v| {
+                    result.*[candidate_idx] = v + weight;
+                }
             }
             sum += weight;
         }
@@ -128,21 +135,21 @@ const WinnerLooser = union(enum) {
     looser: u32,
 };
 
-fn getWinnerAndLooser(counted: []const u64, tie_rank: []const u32, ignore: []const u32, quota: u32) WinnerLooser {
+fn getWinnerAndLooser(counted: []const ?u64, tie_rank: []const CandidateIdx, quota: u32) WinnerLooser {
     var lowest_value: u64 = maxInt(u64);
     var lowest_index: u32 = undefined;
-    for (counted, 0..) |candidate_votes, i| {
-        if (contains(ignore, @intCast(i))) {
-            continue;
-        }
+    for (counted, 0..) |may_candidate_votes, i| {
+        if (may_candidate_votes) |candidate_votes| {
+            const candidate_idx: CandidateIdx = @intCast(i);
 
-        if (candidate_votes >= quota) {
-            return WinnerLooser{ .winner = Winner{ .candidate_idx = @intCast(i), .votes = candidate_votes } };
-        }
+            if (candidate_votes >= quota) {
+                return WinnerLooser{ .winner = Winner{ .candidate_idx = candidate_idx, .votes = candidate_votes } };
+            }
 
-        if (candidate_votes < lowest_value or (candidate_votes == lowest_value and tie_rank[i] < tie_rank[lowest_index])) {
-            lowest_value = candidate_votes;
-            lowest_index = @intCast(i);
+            if (candidate_votes < lowest_value or (candidate_votes == lowest_value and tie_rank[i] < tie_rank[lowest_index])) {
+                lowest_value = candidate_votes;
+                lowest_index = candidate_idx;
+            }
         }
     }
     return WinnerLooser{ .looser = lowest_index };
