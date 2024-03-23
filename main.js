@@ -37,6 +37,7 @@ async function load_wasm(wasm_file) {
   const memory = wasm.instance.exports.memory;
   const single_transferable_vote = wasm.instance.exports.single_transferable_vote;
   const allocator = wasm.instance.exports.allocUint32;
+  const deallocator = wasm.instance.exports.deallocElectedCandidates;
 
   return function (seats, vote_list, tie_rank) {
     try {
@@ -53,17 +54,20 @@ async function load_wasm(wasm_file) {
 
       // Call the roc code
       const result_pointer = single_transferable_vote(seats, candidates, votes, ptr);
-
-      const result_slice = new Uint32Array(memory.buffer, result_pointer, seats + 2);
-      if (result_slice[0] != 0) {
-        throw "Error: Code " + result_slice[0]
+      try {
+        const result_slice = new Uint32Array(memory.buffer, result_pointer, seats + 2);
+        if (result_slice[0] != 0) {
+          throw "Error: Code " + result_slice[0]
+        }
+        let num_of_winners = result_slice[1];
+        let result = [];
+        for (let i = 2; i < num_of_winners + 2; i++) {
+          result.push(result_slice[i]);
+        }
+        return result;
+      } finally {
+        deallocator(result_pointer);
       }
-      let num_of_winners = result_slice[1];
-      let result = [];
-      for (let i = 2; i < num_of_winners + 2; i++) {
-        result.push(result_slice[i]);
-      }
-      return result;
 
     } catch (e) {
       const is_ok = e.message === "unreachable" && exit_code === 0;

@@ -32,6 +32,10 @@ export fn allocUint32(length: u32) [*]u32 {
     return slice.ptr;
 }
 
+export fn deallocElectedCandidates(ptr: [*]u32) void {
+    ElectedCandidateList.fromPointer(global_allocator, ptr).deinit();
+}
+
 const CandidateIdx = u32;
 
 pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, raw_votes: []const u32) ![]u32 {
@@ -395,9 +399,25 @@ const ElectedCandidateList = struct {
         };
     }
 
+    fn fromPointer(allocator: mem.Allocator, ptr: [*]u32) ElectedCandidateList {
+        // TODO: Handle error case
+        assert(ptr[0] == 0);
+        const len = ptr[1];
+        return ElectedCandidateList{
+            .allocator = allocator,
+            .slice = ptr[0 .. len + 2],
+            .len = len,
+        };
+    }
+
+    fn deinit(self: ElectedCandidateList) void {
+        self.allocator.free(self.slice);
+    }
+
     fn finalize(self: ElectedCandidateList) []CandidateIdx {
         const v = self.allocator.resize(self.slice, self.len + 2);
         assert(v);
+        self.slice[1] = self.len;
         return self.slice[0 .. self.len + 2];
     }
 
