@@ -46,7 +46,6 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
 
     const tie_rank = raw_votes[vote_count * candidate_count ..];
     var votes = try VoteList.init(arena_allocator, candidate_count, vote_count, raw_votes);
-
     var ignore = GrowList(CandidateIdx).init(try arena_allocator.alloc(CandidateIdx, candidate_count));
     var vote_weights = try initWeights(arena_allocator, vote_count);
     var counted_votes = try arena_allocator.alloc(?u64, candidate_count);
@@ -54,8 +53,7 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
     // Use the normal allocator here, so the results are not part of the arena
     var elected_candidates = try ElectedCandidateList.init(allocator, seats);
 
-    var highest_candidates = try arena_allocator.alloc(?CandidateGroup, vote_count);
-    getFirstHighest(&highest_candidates, votes);
+    var highest_candidates = try getFirstHighest(arena_allocator, votes);
     while (true) {
         @memset(counted_votes, 0);
         for (ignore.items()) |candidate_idx| {
@@ -88,10 +86,12 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
     return elected_candidates.finalize();
 }
 
-fn getFirstHighest(result: *[]?CandidateGroup, votes: VoteList) void {
+fn getFirstHighest(allocator: mem.Allocator, votes: VoteList) ![]?CandidateGroup {
+    var result = try allocator.alloc(?CandidateGroup, votes.data.len);
     for (votes.data, 0..) |*vote, i| {
-        result.*[i] = if (vote.data.len > 0) vote.data[0] else null;
+        result[i] = if (vote.data.len > 0) vote.data[0] else null;
     }
+    return result;
 }
 
 fn addIgnore(result: *[]?CandidateGroup, votes: *VoteList, old_ignore: *GrowList(CandidateIdx), new_ignore: CandidateIdx) void {
