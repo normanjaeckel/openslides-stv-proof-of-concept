@@ -10090,7 +10090,11 @@
       document.getElementById("calcResult").onclick = function () {
         const result1 = singleTransferableVote(seats1, votes1, tieRank1);
         document.querySelector("#poll1 .result").textContent = JSON.stringify(result1);
+        const amount = 100;
         const start = new Date();
+        for (let i = 0; i < amount + 1; i++) {
+          singleTransferableVote(seats2, votes2, tieRank2);
+        }
         const result2 = singleTransferableVote(seats2, votes2, tieRank2);
         console.log(new Date() - start);
         document.querySelector("#poll2 .result").textContent = JSON.stringify(result2);

@@ -36,23 +36,20 @@ const CandidateIdx = u32;
 
 pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, raw_votes: []const u32) ![]u32 {
     // TODO: validate poll
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const arena_allocator = arena.allocator();
+
     const tie_rank = raw_votes[vote_count * candidate_count ..];
-    var votes = try VoteList.init(allocator, candidate_count, vote_count, raw_votes);
-    defer votes.deinit(allocator);
+    var votes = try VoteList.init(arena_allocator, candidate_count, vote_count, raw_votes);
 
-    const ignore_data = try allocator.alloc(u32, candidate_count);
-    defer allocator.free(ignore_data);
+    const ignore_data = try arena_allocator.alloc(u32, candidate_count);
     var ignore = GrowList(u32).init(ignore_data);
+    var vote_weights = try initWeights(arena_allocator, vote_count);
+    var highest_candidates = try arena_allocator.alloc(?CandidateGroup, vote_count);
+    var counted_votes = try arena_allocator.alloc(?u64, candidate_count);
 
-    var vote_weights = try initWeights(allocator, vote_count);
-    defer allocator.free(vote_weights);
-
-    var highest_candidates = try allocator.alloc(?CandidateGroup, vote_count);
-    defer allocator.free(highest_candidates);
-
-    var counted_votes = try allocator.alloc(?u64, candidate_count);
-    defer allocator.free(counted_votes);
-
+    // Use the normal allocator here, so the results are not part of the arena
     var elected_candidates = try ElectedCandidateList.init(allocator, seats);
 
     while (true) {
