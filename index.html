@@ -10092,7 +10092,7 @@
         document.querySelector("#poll1 .result").textContent = JSON.stringify(result1);
         const amount = 100;
         const start = new Date();
-        for (let i = 0; i < amount + 1; i++) {
+        for (let i = 0; i < amount - 1; i++) {
           singleTransferableVote(seats2, votes2, tieRank2);
         }
         const result2 = singleTransferableVote(seats2, votes2, tieRank2);

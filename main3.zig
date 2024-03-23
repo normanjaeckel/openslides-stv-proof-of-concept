@@ -15,13 +15,18 @@ fn debug(comptime fmt: []const u8, args: anytype) void {
     debug_string(line.ptr, line.len);
 }
 
-export fn single_transferable_vote(seats: u32, candidates: u32, votes: u32, data_pointer: [*]const u32) [*]u32 {
-    const memory_size: usize = candidates * (votes + 1);
+export fn single_transferable_vote(seats: u8, candidate_count: u8, vote_count: u32, data_pointer: [*]const u32) [*]u32 {
+    const vote_data_size = candidate_count * vote_count;
+    const memory_size: usize = vote_data_size + candidate_count;
     defer global_allocator.free(data_pointer[0..memory_size]);
 
-    const elected_candidates = count(global_allocator, seats, candidates, votes, data_pointer[0..memory_size]) catch unreachable;
+    const elected_candidates = count(
+        global_allocator,
+        seats,
+        data_pointer[0..vote_data_size],
+        data_pointer[vote_data_size..memory_size],
+    ) catch unreachable;
 
-    // TODO: give JS the possibility to dealloc the result (also for the roc platform.)
     return elected_candidates.ptr;
 }
 
@@ -37,23 +42,26 @@ export fn deallocElectedCandidates(ptr: [*]u32) void {
 }
 
 const CandidateIdx = u32;
+const VoteSum = u64;
 
-pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_count: u32, raw_votes: []const u32) ![]u32 {
+pub fn count(allocator: mem.Allocator, seats: u8, raw_ballots: []const CandidateIdx, tie_rank: []const CandidateIdx) ![]CandidateIdx {
     // TODO: validate poll
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const arena_allocator = arena.allocator();
 
-    const tie_rank = raw_votes[vote_count * candidate_count ..];
-    var votes = try VoteList.init(arena_allocator, candidate_count, vote_count, raw_votes);
+    const candidate_count = tie_rank.len;
+    const vote_count = raw_ballots.len / candidate_count;
+
+    var votes = try VoteList.init(arena_allocator, candidate_count, vote_count, raw_ballots);
     var ignore = GrowList(CandidateIdx).init(try arena_allocator.alloc(CandidateIdx, candidate_count));
     var vote_weights = try initWeights(arena_allocator, vote_count);
-    var counted_votes = try arena_allocator.alloc(?u64, candidate_count);
+    var counted_votes = try arena_allocator.alloc(?VoteSum, candidate_count);
 
     // Use the normal allocator here, so the results are not part of the arena
     var elected_candidates = try ElectedCandidateList.init(allocator, seats);
 
-    var highest_candidates = try getFirstHighest(arena_allocator, votes);
+    var highest_candidates = try getHighest(arena_allocator, votes);
     while (true) {
         @memset(counted_votes, 0);
         for (ignore.items()) |candidate_idx| {
@@ -66,7 +74,7 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
         }
 
         const remainining_seats = seats - elected_candidates.len;
-        const quota: u32 = @intCast((vote_sum / (remainining_seats + 1)) + 1);
+        const quota = (vote_sum / (remainining_seats + 1)) + 1;
 
         const winner_looser = getWinnerOrLooser(counted_votes, tie_rank, quota);
 
@@ -86,7 +94,15 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
     return elected_candidates.finalize();
 }
 
-fn getFirstHighest(allocator: mem.Allocator, votes: VoteList) ![]?CandidateGroup {
+/// initWeights initializes the weight of each ballot.
+fn initWeights(allocator: mem.Allocator, vote_count: usize) ![]VoteSum {
+    const vote_weights = try allocator.alloc(VoteSum, vote_count);
+    @memset(vote_weights, 1_000_000);
+    return vote_weights;
+}
+
+/// getHighest returns the first preference from each ballot.
+fn getHighest(allocator: mem.Allocator, votes: VoteList) ![]?CandidateGroup {
     var result = try allocator.alloc(?CandidateGroup, votes.data.len);
     for (votes.data, 0..) |*vote, i| {
         result[i] = if (vote.data.len > 0) vote.data[0] else null;
@@ -94,58 +110,44 @@ fn getFirstHighest(allocator: mem.Allocator, votes: VoteList) ![]?CandidateGroup
     return result;
 }
 
-fn addIgnore(result: *[]?CandidateGroup, votes: *VoteList, old_ignore: *GrowList(CandidateIdx), new_ignore: CandidateIdx) void {
-    old_ignore.add(new_ignore);
-    for (0..result.len) |i| {
-        if (result.*[i]) |*group| {
-            switch (group.remove_ignore(&[1]CandidateIdx{new_ignore})) {
-                RemoveResult.IsNowEmpty => {
-                    var vote = votes.data[i];
-                    vote.start += 1;
-                    result.*[i] = for (vote.data[vote.start..]) |*new_group| {
-                        switch (new_group.remove_ignore(old_ignore.items())) {
-                            RemoveResult.IsNowEmpty => {
-                                vote.start += 1;
-                            },
-                            RemoveResult.NotEmpty => {
-                                break new_group.*;
-                            },
-                        }
-                    } else null;
-                },
-                RemoveResult.NotEmpty => {},
-            }
-        }
-    }
-}
-
-fn countVotes(result: *[]?u64, vote_weights: []const u32, vote_groups: []const ?CandidateGroup) u64 {
-    var sum: u64 = 0;
+/// countVotes sums the vote_groups and writes the result into the first argument.
+///
+/// The sum is calculated, by adding the vote_weight of the user. If the user votes
+/// for more then one candidate, the vote_weight is diveded equaly.
+///
+/// The function returns the sum of all votes.
+fn countVotes(result: *[]?VoteSum, vote_weights: []const VoteSum, vote_groups: []const ?CandidateGroup) VoteSum {
+    var sum: VoteSum = 0;
     for (vote_groups, 0..) |may_vote_group, i| {
         if (may_vote_group) |vote_group| {
             const weight = vote_weights[i] / vote_group.len;
             for (vote_group.data) |candidate_idx| {
                 result.*[candidate_idx] = result.*[candidate_idx].? + weight;
             }
-            sum += weight;
+            sum += weight * vote_group.data.len;
         }
     }
     return sum;
 }
 
 const Winner = struct {
-    candidate_idx: u32,
-    votes: u64,
+    candidate_idx: CandidateIdx,
+    votes: VoteSum,
 };
 
 const WinnerLooser = union(enum) {
     winner: Winner,
-    looser: u32,
+    looser: CandidateIdx,
 };
 
-fn getWinnerOrLooser(counted: []const ?u64, tie_rank: []const CandidateIdx, quota: u32) WinnerLooser {
-    var lowest_value: u64 = maxInt(u64);
-    var lowest_index: u32 = undefined;
+/// getWinnerOrLooser returns a Winner, if a candidate has quota or more votes,
+/// or it returns the CandidateIdx with the lowest votes.
+///
+/// The tie_rank is used, if multiple users have the lowest votes. In this case, the
+/// candidate with the lowest tie_rank is returned.
+fn getWinnerOrLooser(counted: []const ?VoteSum, tie_rank: []const CandidateIdx, quota: VoteSum) WinnerLooser {
+    var lowest_value: VoteSum = maxInt(VoteSum);
+    var lowest_index: CandidateIdx = undefined;
     for (counted, 0..) |may_candidate_votes, i| {
         if (may_candidate_votes) |candidate_votes| {
             const candidate_idx: CandidateIdx = @intCast(i);
@@ -163,23 +165,45 @@ fn getWinnerOrLooser(counted: []const ?u64, tie_rank: []const CandidateIdx, quot
     return WinnerLooser{ .looser = lowest_index };
 }
 
-fn updateVoteWeights(vote_weights: *[]u32, highest_candidates: []const ?CandidateGroup, winner: Winner, quota: u32) void {
+/// updateVoteWeights reduces the vote_weight of each ballot, that voted for the winner.
+fn updateVoteWeights(vote_weights: *[]VoteSum, highest_candidates: []const ?CandidateGroup, winner: Winner, quota: VoteSum) void {
     const surplus = winner.votes - quota;
 
     for (highest_candidates, 0..) |may_candidate_group, i| {
         if (may_candidate_group) |candidate_group| {
-            if (contains(candidate_group.data, winner.candidate_idx)) {
-                const x: u32 = vote_weights.*[i] / @as(u32, @intCast(candidate_group.len));
-                vote_weights.*[i] = vote_weights.*[i] - x + @as(u32, @intCast(x * surplus / winner.votes));
+            if (contains(CandidateIdx, candidate_group.data, winner.candidate_idx)) {
+                const x = vote_weights.*[i] / candidate_group.len;
+                vote_weights.*[i] = vote_weights.*[i] - x + (x * surplus / winner.votes);
             }
         }
     }
 }
 
-fn initWeights(allocator: mem.Allocator, vote_count: u32) ![]u32 {
-    const vote_weights = try allocator.alloc(u32, vote_count);
-    @memset(vote_weights, 1_000_000);
-    return vote_weights;
+/// addIgnore updated all memory, that depends on ignored candidates.
+///
+/// It removes it from highest_candidate and adds it to the list of ignored candidates.
+fn addIgnore(highest_candidates: *[]?CandidateGroup, votes: *VoteList, ignore_list: *GrowList(CandidateIdx), new_ignore: CandidateIdx) void {
+    ignore_list.add(new_ignore);
+
+    for (0..highest_candidates.len) |i| {
+        if (highest_candidates.*[i]) |*group| {
+            if (group.remove_ignore(&[1]CandidateIdx{new_ignore}) == RemoveResult.IsNowEmpty) {
+                // Take the next non-empty candidate_group out of the vote. Remove ignored candidates.
+                var vote = votes.data[i];
+                vote.start += 1;
+                highest_candidates.*[i] = for (vote.data[vote.start..]) |*new_group| {
+                    switch (new_group.remove_ignore(ignore_list.items())) {
+                        RemoveResult.IsNowEmpty => {
+                            vote.start += 1;
+                        },
+                        RemoveResult.NotEmpty => {
+                            break new_group.*;
+                        },
+                    }
+                } else null;
+            }
+        }
+    }
 }
 
 const RemoveResult = enum {
@@ -229,7 +253,7 @@ const Vote = struct {
 const VoteList = struct {
     data: []Vote,
 
-    fn init(allocator: mem.Allocator, candidate_count: u32, vote_count: u32, raw_votes: []const u32) !VoteList {
+    fn init(allocator: mem.Allocator, candidate_count: usize, vote_count: usize, raw_votes: []const CandidateIdx) !VoteList {
         var output = try allocator.alloc(Vote, vote_count);
         var pref_index = try allocator.alloc(PrefIndex, candidate_count);
         defer allocator.free(pref_index);
@@ -260,7 +284,7 @@ const VoteList = struct {
         allocator.free(self.data);
     }
 
-    const PrefIndex = struct { amount: u32, candidate: u32 };
+    const PrefIndex = struct { amount: CandidateIdx, candidate: CandidateIdx };
 
     fn cmpPrefIndex(_: void, a: PrefIndex, b: PrefIndex) bool {
         return a.amount > b.amount;
@@ -282,7 +306,7 @@ const VoteList = struct {
                 }
             }
 
-            var group = try allocator.alloc(u32, same_items);
+            var group = try allocator.alloc(CandidateIdx, same_items);
             for (0..same_items) |j| {
                 group[j] = pref_index[i + j].candidate;
             }
@@ -295,20 +319,10 @@ const VoteList = struct {
     }
 };
 
-fn contains_list(a_list: []const u32, b_list: []const u32) bool {
-    for (a_list) |a| {
-        for (b_list) |b| {
-            if (a == b) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-fn contains(a_list: []const u32, v: u32) bool {
-    for (a_list) |a| {
-        if (a == v) {
+/// contains returns true, the list contains the element.
+fn contains(comptime T: type, list: []const T, value: T) bool {
+    for (list) |element| {
+        if (element == value) {
             return true;
         }
     }
@@ -345,7 +359,7 @@ const ElectedCandidateList = struct {
     slice: []CandidateIdx,
     len: usize,
 
-    fn init(allocator: mem.Allocator, seats: u32) !ElectedCandidateList {
+    fn init(allocator: mem.Allocator, seats: u8) !ElectedCandidateList {
         const slice = try allocator.alloc(CandidateIdx, seats + 2);
         slice[0] = 0;
         slice[1] = seats;
@@ -356,7 +370,7 @@ const ElectedCandidateList = struct {
         };
     }
 
-    fn fromPointer(allocator: mem.Allocator, ptr: [*]u32) ElectedCandidateList {
+    fn fromPointer(allocator: mem.Allocator, ptr: [*]CandidateIdx) ElectedCandidateList {
         // TODO: Handle error case
         assert(ptr[0] == 0);
         const len = ptr[1];
@@ -371,6 +385,7 @@ const ElectedCandidateList = struct {
         self.allocator.free(self.slice);
     }
 
+    /// finalize frees all unneeded memory, except of the memory, that has to be returned by count()
     fn finalize(self: ElectedCandidateList) []CandidateIdx {
         const v = self.allocator.resize(self.slice, self.len + 2);
         assert(v);
@@ -504,29 +519,26 @@ fn callCount(json_data: []const u8) !void {
 
     const data = parsed.value;
 
-    const raw_data = try data.rawVotes(allocator);
-    defer allocator.free(raw_data);
+    const raw_votes = try data.rawVotes(allocator);
+    defer allocator.free(raw_votes);
 
-    const result = try count(allocator, data.seats, data.candidateCount(), data.voteCount(), raw_data);
+    const result = try count(allocator, data.seats, raw_votes, data.tie_rank);
     defer allocator.free(result);
     try std.testing.expectEqualSlices(u32, data.expect, result[2..]);
 }
 
 const TestData = struct {
-    seats: u32,
+    seats: u8,
     tie_rank: []u32,
     votes: [][]u32,
     expect: []u32,
 
     pub fn rawVotes(self: TestData, allocator: std.mem.Allocator) ![]u32 {
-        var result = try allocator.alloc(u32, (self.candidateCount() * (self.voteCount() + 1)));
+        var result = try allocator.alloc(u32, self.candidateCount() * (self.voteCount()));
         for (self.votes, 0..) |vote, i| {
             for (vote, 0..) |pref, j| {
                 result[i * self.candidateCount() + j] = pref;
             }
-        }
-        for (self.tie_rank, 0..) |pref, i| {
-            result[self.voteCount() * self.candidateCount() + i] = pref;
         }
         return result;
     }
