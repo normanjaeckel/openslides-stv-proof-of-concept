@@ -47,18 +47,21 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
     const tie_rank = raw_votes[vote_count * candidate_count ..];
     var votes = try VoteList.init(arena_allocator, candidate_count, vote_count, raw_votes);
 
-    const ignore_data = try arena_allocator.alloc(u32, candidate_count);
-    var ignore = GrowList(u32).init(ignore_data);
+    var ignore = GrowList(CandidateIdx).init(try arena_allocator.alloc(CandidateIdx, candidate_count));
     var vote_weights = try initWeights(arena_allocator, vote_count);
-    var highest_candidates = try arena_allocator.alloc(?CandidateGroup, vote_count);
     var counted_votes = try arena_allocator.alloc(?u64, candidate_count);
 
     // Use the normal allocator here, so the results are not part of the arena
     var elected_candidates = try ElectedCandidateList.init(allocator, seats);
 
+    var highest_candidates = try arena_allocator.alloc(?CandidateGroup, vote_count);
+    getFirstHighest(&highest_candidates, votes);
     while (true) {
-        getHighest(&highest_candidates, &votes, ignore.items());
-        const vote_sum = countVotes(&counted_votes, vote_weights, highest_candidates, ignore.items());
+        @memset(counted_votes, 0);
+        for (ignore.items()) |candidate_idx| {
+            counted_votes[candidate_idx] = null;
+        }
+        const vote_sum = countVotes(&counted_votes, vote_weights, highest_candidates);
 
         if (vote_sum == 0) {
             break;
@@ -69,52 +72,60 @@ pub fn count(allocator: mem.Allocator, seats: u32, candidate_count: u32, vote_co
 
         const winner_looser = getWinnerOrLooser(counted_votes, tie_rank, quota);
 
-        switch (winner_looser) {
-            WinnerLooser.winner => |winner| {
+        const remove_candidate = switch (winner_looser) {
+            WinnerLooser.winner => |winner| blk: {
                 elected_candidates.add(winner.candidate_idx);
                 if (remainining_seats == 1) {
                     break;
                 }
-                ignore.add(winner.candidate_idx);
                 updateVoteWeights(&vote_weights, highest_candidates, winner, quota);
+                break :blk winner.candidate_idx;
             },
-            WinnerLooser.looser => |looser| {
-                ignore.add(looser);
-            },
-        }
+            WinnerLooser.looser => |looser| looser,
+        };
+        addIgnore(&highest_candidates, &votes, &ignore, remove_candidate);
     }
     return elected_candidates.finalize();
 }
 
-fn getHighest(result: *[]?CandidateGroup, votes: *VoteList, ignore: []const CandidateIdx) void {
+fn getFirstHighest(result: *[]?CandidateGroup, votes: VoteList) void {
     for (votes.data, 0..) |*vote, i| {
-        result.*[i] = for (vote.data[vote.start..]) |*group| {
-            switch (group.remove_ignore(ignore)) {
-                RemoveResult.IsNowEmpty => {
-                    vote.start += 1;
-                },
-                RemoveResult.NotEmpty => {
-                    break group.*;
-                },
-            }
-        } else null;
+        result.*[i] = if (vote.data.len > 0) vote.data[0] else null;
     }
 }
 
-fn countVotes(result: *[]?u64, vote_weights: []const u32, vote_groups: []const ?CandidateGroup, ignore: []CandidateIdx) u64 {
-    @memset(result.*, 0);
-    for (ignore) |candidate_idx| {
-        result.*[candidate_idx] = null;
+fn addIgnore(result: *[]?CandidateGroup, votes: *VoteList, old_ignore: *GrowList(CandidateIdx), new_ignore: CandidateIdx) void {
+    old_ignore.add(new_ignore);
+    for (0..result.len) |i| {
+        if (result.*[i]) |*group| {
+            switch (group.remove_ignore(&[1]CandidateIdx{new_ignore})) {
+                RemoveResult.IsNowEmpty => {
+                    var vote = votes.data[i];
+                    vote.start += 1;
+                    result.*[i] = for (vote.data[vote.start..]) |*new_group| {
+                        switch (new_group.remove_ignore(old_ignore.items())) {
+                            RemoveResult.IsNowEmpty => {
+                                vote.start += 1;
+                            },
+                            RemoveResult.NotEmpty => {
+                                break new_group.*;
+                            },
+                        }
+                    } else null;
+                },
+                RemoveResult.NotEmpty => {},
+            }
+        }
     }
+}
 
+fn countVotes(result: *[]?u64, vote_weights: []const u32, vote_groups: []const ?CandidateGroup) u64 {
     var sum: u64 = 0;
     for (vote_groups, 0..) |may_vote_group, i| {
         if (may_vote_group) |vote_group| {
             const weight = vote_weights[i] / vote_group.len;
             for (vote_group.data) |candidate_idx| {
-                if (result.*[candidate_idx]) |v| {
-                    result.*[candidate_idx] = v + weight;
-                }
+                result.*[candidate_idx] = result.*[candidate_idx].? + weight;
             }
             sum += weight;
         }
@@ -284,60 +295,6 @@ const VoteList = struct {
     }
 };
 
-// test "sort votes" {
-//     const allocator = std.testing.allocator;
-
-//     const got = try VoteList.init(allocator, 2, 3, &[_]u32{ 1, 2, 3, 3, 2, 1 });
-//     defer got.deinit(allocator);
-
-//     var parsed = try std.json.parseFromSlice(
-//         [][][]u32,
-//         allocator,
-//         \\ [[[1],[0]], [[0,1]], [[0],[1]]]
-//     ,
-//         .{},
-//     );
-//     defer parsed.deinit();
-
-//     try std.testing.expectEqualDeep(parsed.value, got.data);
-// }
-
-// test "sort votes with zero values" {
-//     const allocator = std.testing.allocator;
-
-//     const got = try VoteList.init(allocator, 2, 3, &[_]u32{ 0, 2, 0, 4, 0, 6 });
-//     defer got.deinit(allocator);
-
-//     var parsed = try std.json.parseFromSlice(
-//         [][][]u32,
-//         allocator,
-//         \\[[[1]], [[1]], [[1]]]
-//     ,
-//         .{},
-//     );
-//     defer parsed.deinit();
-
-//     try std.testing.expectEqualDeep(parsed.value, got.data);
-// }
-
-// test "same value" {
-//     const allocator = std.testing.allocator;
-
-//     const got = try VoteList.init(allocator, 2, 3, &[_]u32{ 2, 2, 2, 2, 2, 2 });
-//     defer got.deinit(allocator);
-
-//     var parsed = try std.json.parseFromSlice(
-//         [][][]u32,
-//         allocator,
-//         \\[[[0,1]], [[0,1]], [[0,1]]]
-//     ,
-//         .{},
-//     );
-//     defer parsed.deinit();
-
-//     try std.testing.expectEqualDeep(parsed.value, got.data);
-// }
-
 fn contains_list(a_list: []const u32, b_list: []const u32) bool {
     for (a_list) |a| {
         for (b_list) |b| {
@@ -417,7 +374,7 @@ const ElectedCandidateList = struct {
     fn finalize(self: ElectedCandidateList) []CandidateIdx {
         const v = self.allocator.resize(self.slice, self.len + 2);
         assert(v);
-        self.slice[1] = self.len;
+        self.slice[1] = @intCast(self.len);
         return self.slice[0 .. self.len + 2];
     }
 

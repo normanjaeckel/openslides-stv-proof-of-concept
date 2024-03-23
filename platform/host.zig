@@ -77,6 +77,12 @@ export fn allocUint32(length: u32) [*]u32 {
     return slice.ptr;
 }
 
+export fn deallocElectedCandidates(ptr: [*]u32) void {
+    std.debug.assert(ptr[0] == 0);
+    const len = ptr[1];
+    allocator.free(ptr[0..len]);
+}
+
 pub fn main() u8 {
     // TODO: This should be removed: https://github.com/roc-lang/roc/issues/5585
     return 0;
