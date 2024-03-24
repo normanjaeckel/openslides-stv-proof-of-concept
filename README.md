@@ -5,7 +5,5 @@ This is just a proof of concept. The algorithm is taken from [Raftery, et al., "
 To build the zig implementation, call: 
 
 ```
-zig build-lib -dynamic -target wasm32-freestanding main3.zig -femit-bin=main.wasm -rdynamic
+zig build-lib -dynamic -target wasm32-freestanding main.zig -femit-bin=main.wasm -rdynamic -O ReleaseSmall
 ```
-
-Add `-O ReleaseSmall` to get an optimized build.
